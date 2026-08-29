@@ -19,6 +19,7 @@ end)
 RegisterNUICallback('register', function(data, cb)
     TriggerServerEvent('ph-core:auth:register', {
         username = data.username,
+        email    = data.email,
         password = data.password,
     })
     cb('ok')

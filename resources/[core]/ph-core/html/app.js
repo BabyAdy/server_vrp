@@ -1,5 +1,8 @@
 /* ph-core / html / app.js */
 
+const APP_JS_VERSION = 'auth-3-email';
+console.log('[ph-core] app.js loaded:', APP_JS_VERSION);
+
 const RES = 'ph-core';
 
 function post(name, data = {}) {
@@ -87,13 +90,16 @@ document.getElementById('form-register').addEventListener('submit', (e) => {
         return;
     }
 
-    setFormEnabled('form-register', false);
-    setMsg('msg-register', 'Se creeaza contul...', true);
-    post('register', {
+    const payload = {
         username: (fd.get('username') || '').trim(),
         email: email,
         password: pw,
-    });
+    };
+    console.log('[ph-core] sending register:', JSON.stringify({ ...payload, password: '***' }));
+
+    setFormEnabled('form-register', false);
+    setMsg('msg-register', 'Se creeaza contul...', true);
+    post('register', payload);
 });
 
 /* ---------------------------------------------------------- character create */

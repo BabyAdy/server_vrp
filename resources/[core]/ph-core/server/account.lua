@@ -48,7 +48,8 @@ local function validateEmail(e)
     if type(e) ~= 'string' then return false end
     e = PH.Utils.Trim(e):lower()
     if #e < 5 or #e > 120 then return false end
-    if not e:match("^[%w._%%+%-]+@[%w%.%-]+%.%a%a+$") then return false end
+    -- ceva @ ceva . ceva  (fara spatii, fara al doilea @)
+    if not e:match('^[^@%s]+@[^@%s]+%.[^@%s]+$') then return false end
     return true, e
 end
 
@@ -99,6 +100,10 @@ RegisterNetEvent('ph-core:auth:register', function(data)
     if not PH.DB.ready then return authFail(src, 'Serverul se initializeaza.') end
 
     data = data or {}
+    print(('^3[ph-core] register payload:^7 username=%q email=%q pass_len=%s'):format(
+        tostring(data.username), tostring(data.email),
+        type(data.password) == 'string' and #data.password or 'nil'))
+
     local okU, username = validateUsername(data.username)
     local okE, email    = validateEmail(data.email)
     local okP, password = validatePassword(data.password)
