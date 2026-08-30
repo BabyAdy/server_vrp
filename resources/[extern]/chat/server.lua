@@ -1,9 +1,11 @@
 -- ==========================================================
---  chat / server  (adaptat la ph-core - fara vRP)
+--  chat / server
+--  Portat de pe vRP pe framework-ul Purple Havoc (ph-core).
+--  Contractul catre NUI ramane identic: { time, rank, name, id, text }
 -- ==========================================================
 
 -- ----------------------------------------------------------
---  Ora Bucuresti / Romania (EET / EEST cu DST UE) -> "HH:MM"
+--  Ora Bucuresti / Romania (EET / EEST, cu DST UE) -> "HH:MM"
 -- ----------------------------------------------------------
 local function dow(y, m, d)
     local t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
@@ -29,7 +31,7 @@ local function euDstActive(u)
     return (u.day < ol) or (u.day == ol and u.hour < 1)
 end
 
-local function roTime()
+local function getTime()
     local epoch = os.time()
     local u = os.date('!*t', epoch)
     local offset = 2 + (euDstActive(u) and 1 or 0)
@@ -38,31 +40,40 @@ local function roTime()
 end
 
 -- ----------------------------------------------------------
---  Helpers
+--  Date jucator din ph-core
 -- ----------------------------------------------------------
-local lastSend = {}   -- [src] = epoch (rate limit)
+local function getCharacter(src)
+    local ok, char = pcall(function()
+        return exports['ph-core']:GetCharacter(src)
+    end)
+    if ok and type(char) == 'table' then return char end
+    return nil
+end
+
+--- Label-ul gradului de staff (users.staff) sau nil pentru jucator normal
+local function getPlayerRank(char)
+    if not char or not char.staff or char.staff == '' then return nil end
+    local ok, g = pcall(function()
+        return exports['ph-core']:GetStaffGrade(char.staff)
+    end)
+    if ok and type(g) == 'table' then return g.label end
+    return nil
+end
 
 local function sanitize(msg)
     msg = tostring(msg or '')
     msg = msg:gsub('[\r\n\t]', ' ')
-    msg = msg:gsub('%^%d', '')       -- fara coduri de culoare venite de la jucator
     msg = msg:gsub('%s+', ' ')
     msg = msg:gsub('^%s+', ''):gsub('%s+$', '')
-    if #msg > 256 then msg = msg:sub(1, 256) end
+    if #msg > 256 then
+        msg = msg:sub(1, 256)
+    end
     return msg
 end
 
---- Rangul (label + culoare) din users.staff, via ph-core
-local function getRank(char)
-    if not char or not char.staff or char.staff == '' then return nil, nil end
-    local g = exports['ph-core']:GetStaffGrade(char.staff)
-    if not g then return nil, nil end
-    return g.label, g.color
-end
+-- rate limit (inlocuieste statebag-ul vRP)
+local lastSend = {}
 
--- ----------------------------------------------------------
---  Mesaje
--- ----------------------------------------------------------
 RegisterNetEvent('chat:sendMessage', function(raw)
     local src = source
     if type(raw) ~= 'string' then return end
@@ -70,52 +81,45 @@ RegisterNetEvent('chat:sendMessage', function(raw)
     local text = sanitize(raw)
     if text == '' then return end
 
-    local char = exports['ph-core']:GetCharacter(src)
-    if not char then return end   -- neautentificat / fara personaj
+    local char = getCharacter(src)
+    if not char then return end
 
+    -- rate limit
     local now = os.time()
     if now - (lastSend[src] or 0) < 1 then return end
     lastSend[src] = now
 
-    local rank, rankColor = getRank(char)
-    local name = char.username or GetPlayerName(src) or ('Player_' .. src)
-
-    TriggerClientEvent('chat:addMessage', -1, {
-        time = roTime(),
-        rank = rank,
-        rankColor = rankColor,
-        name = name,
-        id = char.id,
+    local payload = {
+        time = getTime(),
+        rank = getPlayerRank(char),
+        name = char.username or GetPlayerName(src),
+        id   = char.id,
         text = text,
-    })
+    }
 
-    TriggerEvent('chatMessage', src, name, text)   -- compat cu resurse care asculta `chatMessage`
-    print(('[chat] %s (%s): %s'):format(name, tostring(char.id), text))
+    TriggerClientEvent('chat:addMessage', -1, payload)
+    TriggerEvent('chatMessage', src, payload.name, text)   -- compat cu resurse care asculta `chatMessage`
 end)
 
 AddEventHandler('playerDropped', function()
     lastSend[source] = nil
 end)
 
--- ----------------------------------------------------------
---  /clearchat (admin: ace ph.admin, sau consola)
--- ----------------------------------------------------------
 RegisterCommand('clearchat', function(src)
-    if src == 0 or IsPlayerAceAllowed(src, 'ph.admin') then
+    if src == 0 then
+        TriggerClientEvent('chat:clear', -1)
+        return
+    end
+    if IsPlayerAceAllowed(src, 'ph.admin') then
         TriggerClientEvent('chat:clear', -1)
     end
 end, false)
 
--- ----------------------------------------------------------
---  Export pentru alte resurse
---  exports['chat']:addMessage({ name = 'SYSTEM', text = '...', rank = 'Info', rankColor = '#37ff00' })
--- ----------------------------------------------------------
 exports('addMessage', function(payload)
     if type(payload) ~= 'table' then return end
     TriggerClientEvent('chat:addMessage', -1, {
-        time = payload.time or roTime(),
+        time = payload.time or getTime(),
         rank = payload.rank,
-        rankColor = payload.rankColor,
         name = payload.name or 'SYSTEM',
         id = payload.id or 0,
         text = payload.text or '',

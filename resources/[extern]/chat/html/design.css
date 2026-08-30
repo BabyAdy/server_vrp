@@ -1,0 +1,452 @@
+@import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@100..900&family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+*, *::after, *::before {
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    font-smooth: never !important;
+    font-family: 'Barlow', sans-serif !important;
+}
+
+*, ::before, ::after {
+    box-sizing: border-box;
+    margin: 0vw;
+    padding: 0vw;
+    user-select: none;
+}
+
+body {
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    user-select: none;
+    font-family: 'Barlow', sans-serif !important;
+}
+.color-0{color: #ffffff;}
+.color-1{color: #ff4444;}
+.color-2{color: #99cc00;}
+.color-3{color: #ffbb33;}
+.color-4{color: #0099cc;}
+.color-5{color: #33b5e5;}
+.color-6{color: #ac1aac;}
+.color-7{color: #ffffff;}
+.color-8{color: #cc0000;}
+.color-9{animation: rainbow 3s linear infinite;}
+
+.color-u{color: lightgray;}
+.color-g{color: #ac1aac;}
+.color-p{color: #ac1aac;}
+.color-e{color: #FF9914;}
+.color-t{color: #5EB1BF;}
+.color-j{color: #41BBD9;}
+.color-f{color: #0074ba;}
+.color-z{color: #4b44ff;}
+.color-i{color: #291a33;}
+.color-a{color: #ff9600;}
+.color-r{color: #F6FF8B;}
+
+@keyframes rainbow {
+    from { color: #ae00ff; }
+    15% { color: #ac1aac; }
+    30% { color: #ff7f00; }
+    45% { color: #0f0; }
+    60% { color: #ff0; }
+    75% { color: #ff7f00; }
+    90% { color: #ff0000; }
+    to { color: #ac1aac; }
+}
+
+.main-chat {
+    position: absolute;
+    top: 1.302vw;
+    left: 1.406vw;
+}
+
+.input-wrapper{
+    width: 22.604vw;
+    height: 2.344vw;
+
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    outline: none;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    padding-left: 2vh;
+    padding-right: 2vh;
+}
+
+.input-wrapper > input{
+    width: 90%;
+    height: 2.083vw;
+
+    background: none;
+    border: none;
+    outline: none;
+    text-align: left;
+
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.625vw;
+    line-height: 0.833vw;
+
+    color: rgb(255, 255, 255);
+}
+
+.input-wrapper > input::placeholder{
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.625vw;
+    line-height: 0.833vw;
+
+    color: rgba(255, 255, 255, 0.18);
+}
+
+.input-wrapper > .send-button{
+    width: 3.125vw;
+    height: 1.25vw;
+
+    background: #ac1aac;
+    box-shadow: 0vw 0.156vw 0vw rgba(145, 134, 48, 0.25);
+    border-radius: 0.156vw;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 0.729vw;
+    text-align: center;
+
+    color: #363636;
+}
+
+.chat-input-send {
+    width: 2.917vw;
+    height: 1.146vw;
+    flex-shrink: 0;
+    border-radius: 0.26vw;
+    background: #FFF;
+    box-shadow: 0vw 0.156vw 0vw 0vw #A1A1A1;
+    display: grid;
+    place-items: center;
+    color: rgba(0, 0, 0, 0.70);
+    font-family: Gotham;
+    font-size: 0.521vw;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 0.313vw;
+    flex-shrink: 0;
+    height: 16.302vw;
+    overflow: hidden auto;
+    margin-top: 1vh;
+    width: 22.604vw;
+    direction: rtl;
+    padding-left: 1vh;
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 0.208vw;
+    height: 13.333vw;
+    background: rgba(217, 217, 217, 0.06);
+}
+.chat-messages::-webkit-scrollbar-track {
+    width: 0.208vw;
+    height: 13.333vw;
+    background: rgba(217, 217, 217, 0.06);
+}
+.chat-messages::-webkit-scrollbar-thumb {
+    width: 0.208vw;
+    height: 6.042vw;
+    background: #ac1aac;
+    box-shadow: 0vw 0vw 0.797vw rgba(172, 26, 172, 0.65);
+}
+.chat-messages::-webkit-scrollbar-thumb:window-inactive {
+    width: 0.208vw;
+    height: 6.042vw;
+    background: #ac1aac;
+}
+
+.chat-messages .chat-message {
+    animation: fadeIn .30s;
+    color: #FFF;
+    font-size: 0.781vw;
+    letter-spacing: -0.027vw;
+    word-break: break-word;
+    display: flex;
+    gap: 0.1vw;
+    max-width: 22.604vw;
+    direction: ltr;
+    padding-top: .5vh;
+    /* Aliniem tot conținutul pe un singur rând */
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.chat-messages .chat-message div span span:nth-child(1){
+    font-family: 'Space Grotesk';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.625vw;
+    text-align: center;
+    text-shadow: 0vw 0.208vw 0.208vw rgba(0, 0, 0, 0.25);
+}
+
+.chat-messages .chat-message div span span:nth-child(2){
+    min-width: 6.406vw;
+    height: 1.615vw;
+    background: linear-gradient(270deg, rgba(217, 217, 217, 0) 0%, rgba(217, 217, 217, 0.14) 100%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: start;
+    padding-left: 1vh;
+    flex-direction: row;
+    gap: 0.313vw;
+}
+
+.chat-messages .chat-message div span span:nth-child(2) > span:nth-child(1){
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 0.833vw;
+    color: #FFFFFF;
+}
+
+.chat-messages .chat-message div span span:nth-child(2) > span:nth-child(2){
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.625vw;
+    color: rgba(255, 255, 255, 0.29);
+}
+
+.chat-messages .chat-message div span span:nth-child(3){
+    /* Eliminăm max-width pentru a nu forța rândul nou */
+    max-width: none;
+    min-height: 1.771vw;
+    background: linear-gradient(270deg, rgba(42, 42, 42, 0) 0%, rgba(22, 22, 22, 0.22) 100%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: start;
+    padding-left: 1vh;
+    padding-bottom: .5vh;
+    padding-top: .5vh;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.521vw;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: left;
+    margin-top: 0;
+    white-space: normal; /* Aici am schimbat de la nowrap la normal */
+}
+
+.chat-messages .chat-message strong {
+    font-weight: 500;
+}
+
+.chat-shadow {
+    position: absolute;
+    inset: 0;
+    width: 34.896vw;
+    height: 23.646vw;
+    background: url(shadow.png) no-repeat;
+    background-size: 100% 100%;
+    z-index: -1;
+}
+
+.staff-box{
+    min-width: 3.906vw;
+    height: 1.51vw;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: .5vh .5vh .5vh .5vh;
+
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 0.625vw;
+    text-align: center;
+
+    color: #FFFFFF;
+    text-transform: uppercase;
+}
+
+.staff-box.staff{
+    background: #ac1aac21;
+    box-shadow: 0vw 0vw 2.604vw #ac1aac21;
+}
+
+.staff-box.goat{
+    background: #ac1aac21;
+    box-shadow: 0vw 0vw 2.604vw #ac1aac21;
+}
+
+
+.staff-box.patron {
+    background: #6379f321;
+    box-shadow: 0vw 0vw 2.604vw #4d599e21;
+}
+.staff-box.founder {
+    background: #6103f821;
+    box-shadow: 0vw 0vw 2.604vw #e0f2f321;
+}
+.staff-box.Goatpower {
+    background: #b700ff21;
+    box-shadow: 0vw 0vw 2.604vw #dcc5f021;
+}
+
+.staff-box.GoatTeam {
+    background: #e22bb421;
+    box-shadow: 0vw 0vw 2.604vw #e73ce721;
+}
+
+.staff-box.GoatFrozen {
+    background: #02a2ff21;
+}
+
+.staff-box.manager {
+    background: #ffffff8a;
+}
+
+.staff-box.Owner {
+    background: #2f00ff21;
+    box-shadow: 0vw 0vw 2.604vw #5a39ec21;
+}
+
+.staff-box.patron {
+    background: #00fc7e21;
+    box-shadow: 0vw 0vw 2.604vw #00F2FC21;
+}
+
+.staff-box.day1 {
+    background: #fc000021;
+    box-shadow: 0vw 0vw 2.604vw #fc000021;
+}
+
+.staff-box.codetinator {
+    background: #fffb0021;
+    box-shadow: 0vw 0vw 2.604vw #d4dd5221;
+}
+
+.staff-box.superModerator {
+    background: #00F2FC21;
+    box-shadow: 0vw 0vw 2.604vw #00F2FC21;
+}
+
+.staff-box.moderator {
+    background: #aff62121;
+    box-shadow: 0vw 0vw 2.604vw #aff68321;
+}
+
+.staff-box.helper {
+    background: #7cdfff21;
+    box-shadow: 0vw 0vw 2.604vw #7cdfff21;
+}
+
+.staff-box.trialHelper {
+    background: #a9ffb921;
+    box-shadow: 0vw 0vw 2.604vw #a9ffb921;
+}
+
+.staff-box.bronzeAccount {
+    background: #e8740721;
+    box-shadow: 0vw 0vw 2.604vw #e8740721;
+}
+
+.staff-box.silverAccount {
+    background: #fc4c4c21;
+    box-shadow: 0vw 0vw 2.604vw #fc4c4c21;
+}
+
+.staff-box.goldAccount {
+    background: #dede1821;
+    box-shadow: 0vw 0vw 2.604vw #dede1821;
+}
+
+.staff-box.diamondAccount {
+    background: #4cd6ed21;
+    box-shadow: 0vw 0vw 2.604vw #4cd6ed21;
+}
+
+.staff-box.politie {
+    background: #0074ba21;
+    box-shadow: 0vw 0vw 2.604vw #0074ba21;
+}
+
+.staff-box.smurd {
+    background: #ff180021;
+    box-shadow: 0vw 0vw 2.604vw #ff180021;
+}
+
+.admin-action{
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    gap: 0.833vw;
+    direction: ltr;
+    padding-top: 1vh;
+}
+
+.admin-action > .icon-box{
+    width: 2.083vw;
+    height: 2.083vw;
+
+    background: rgba(255, 76, 76, 0.14);
+    box-shadow: inset 0vw 0vw 0.693vw rgba(255, 76, 76, 0.55);
+    border-radius: 0.469vw;
+    transform: rotate(45deg);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-action > .icon-box > img{
+    width: 0.625vw;
+    height: 0.625vw;
+    transform: rotate(-45deg);
+}
+
+.admin-action > .flex-start{
+    display: flex;
+    align-items: start;
+    flex-direction: column;
+    gap: 0.104vw;
+}
+
+.admin-action > .flex-start > span:nth-child(1){
+    font-family: 'Chakra Petch';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 0.833vw;
+
+    color: #FF4B4B;
+
+    text-shadow: 0vw 0vw 0.792vw rgba(255, 75, 75, 0.57);
+}
+
+.admin-action > .flex-start > span:nth-child(2){
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.521vw;
+
+    color: rgba(255, 255, 255, 0.75);
+}

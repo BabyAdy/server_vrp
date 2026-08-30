@@ -38,28 +38,12 @@ body {
     top: 28px;
     left: 10px;
     width: min(720px, 55vw);
-    max-height: 340px;          /* inchis: ~17 linii, restul e taiat sus */
+    max-height: 42vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     gap: 1px;
-}
-
-/* deschis (tasta T): cursor activ + scroll prin tot buffer-ul (max 30 linii) */
-body.chat-open #messages {
-    max-height: 60vh;
-    overflow-y: auto;
-    pointer-events: auto;
-    padding-right: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
-}
-
-body.chat-open #messages::-webkit-scrollbar { width: 7px; }
-body.chat-open #messages::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.35);
-    border-radius: 4px;
 }
 
 .msg {

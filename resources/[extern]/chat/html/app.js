@@ -4,8 +4,9 @@
     const input = document.getElementById('chat-input');
     const fpsEl = document.getElementById('fps');
 
-    const MAX_MESSAGES = 30;      // buffer pastrat (vizibil prin scroll cand chat-ul e deschis)
-    const FADE_AFTER_MS = 12000;  // dupa cat timp inactiv se estompeaza (cand e inchis)
+    const MAX_MESSAGES = 50;
+    const FADE_AFTER_MS = 12000;
+    const REMOVE_AFTER_MS = 14000;
 
     let open = false;
     let resourceName = 'chat';
@@ -35,11 +36,7 @@
             .replace(/"/g, '&quot;');
     }
 
-    function safeColor(c) {
-        return typeof c === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : null;
-    }
-
-    function addMessage({ time, rank, rankColor, name, id, text }) {
+    function addMessage({ time, rank, name, id, text }) {
         const el = document.createElement('div');
         el.className = 'msg';
 
@@ -48,10 +45,9 @@
         const safeName = escapeHtml(name || 'Necunoscut');
         const safeId = escapeHtml(String(id ?? '?'));
         const safeText = escapeHtml(text || '');
-        const col = safeColor(rankColor);
 
         const rankHtml = safeRank
-            ? `<span class="rank"${col ? ` style="color:${col}"` : ''}>[${safeRank}]</span> `
+            ? `<span class="rank">[${safeRank}]</span> `
             : '';
 
         el.innerHTML =
@@ -62,29 +58,31 @@
             `<span class="sep">: </span>` +
             `<span class="text">${safeText}</span>`;
 
-        // nu te trage la baza daca esti scrollat in sus si citesti
-        const atBottom =
-            messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
-
         messagesEl.appendChild(el);
 
         while (messagesEl.children.length > MAX_MESSAGES) {
             messagesEl.removeChild(messagesEl.firstChild);
         }
 
-        if (!open || atBottom) {
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        }
+        messagesEl.scrollTop = messagesEl.scrollHeight;
 
-        el._fadeTimer = setTimeout(() => {
+        const fadeTimer = setTimeout(() => {
             if (!open) el.classList.add('fade');
         }, FADE_AFTER_MS);
+
+        const removeTimer = setTimeout(() => {
+            if (!open && el.parentNode) el.remove();
+        }, REMOVE_AFTER_MS);
+
+        el._fadeTimer = fadeTimer;
+        el._removeTimer = removeTimer;
     }
 
     function clearFadeTimers() {
         [...messagesEl.children].forEach((el) => {
             el.classList.remove('fade');
             if (el._fadeTimer) clearTimeout(el._fadeTimer);
+            if (el._removeTimer) clearTimeout(el._removeTimer);
         });
     }
 
@@ -92,20 +90,24 @@
         [...messagesEl.children].forEach((el) => {
             el.classList.remove('fade');
             if (el._fadeTimer) clearTimeout(el._fadeTimer);
+            if (el._removeTimer) clearTimeout(el._removeTimer);
+
             el._fadeTimer = setTimeout(() => {
                 if (!open) el.classList.add('fade');
             }, FADE_AFTER_MS);
+
+            el._removeTimer = setTimeout(() => {
+                if (!open && el.parentNode) el.remove();
+            }, REMOVE_AFTER_MS);
         });
     }
 
     function setOpen(state) {
         open = state;
-        document.body.classList.toggle('chat-open', state);
         if (open) {
             clearFadeTimers();
             inputWrap.classList.remove('hidden');
             input.value = '';
-            messagesEl.scrollTop = messagesEl.scrollHeight;
             setTimeout(() => input.focus(), 20);
         } else {
             inputWrap.classList.add('hidden');

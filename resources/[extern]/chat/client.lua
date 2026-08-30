@@ -12,14 +12,8 @@ local function setFocus(state)
     SetNuiFocusKeepInput(false)
 end
 
-local function isLoaded()
-    local ok, res = pcall(function() return exports['ph-core']:IsLoaded() end)
-    return ok and res == true
-end
-
 local function openChat()
     if chatOpen then return end
-    if not isLoaded() then return end   -- nu deschide chat-ul in ecranul de login
     setFocus(true)
     nui('open')
 end
@@ -49,11 +43,7 @@ RegisterNUICallback('send', function(data, cb)
     if type(msg) == 'string' then
         msg = msg:gsub('^%s+', ''):gsub('%s+$', '')
         if #msg > 0 and #msg <= 256 then
-            if msg:sub(1, 1) == '/' then
-                ExecuteCommand(msg:sub(2))          -- comanda: client sau, daca lipseste, server
-            else
-                TriggerServerEvent('chat:sendMessage', msg)
-            end
+            TriggerServerEvent('chat:sendMessage', msg)
         end
     end
     closeChat()
@@ -65,7 +55,6 @@ RegisterNetEvent('chat:addMessage', function(payload)
     nui('message', {
         time = payload.time,
         rank = payload.rank,
-        rankColor = payload.rankColor,
         name = payload.name,
         id = payload.id,
         text = payload.text,
@@ -94,10 +83,10 @@ CreateThread(function()
     end
 end)
 
--- Ascunde chatul default FiveM (NU umbla la NuiFocus global - poate fura focusul
--- de la ecranul de login al ph-core daca resursa e repornita live)
+-- Ascunde chatul default FiveM
 CreateThread(function()
     SetTextChatEnabled(false)
+    SetNuiFocus(false, false)
 end)
 
 exports('addMessage', function(payload)
