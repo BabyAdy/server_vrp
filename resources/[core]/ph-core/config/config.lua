@@ -48,3 +48,28 @@ Config.Character = {
 
 -- Salvare automata a personajelor (ms)
 Config.AutoSaveInterval = 5 * 60 * 1000
+
+-- ----------------------------------------------------------
+--  Grade de staff (cheia = valoarea din users.staff)
+-- ----------------------------------------------------------
+Config.StaffGrades = {
+    owner        = { label = 'Owner',         color = '#5100ff' },
+    developer    = { label = 'Developer',     color = '#da9dff' },
+    manager      = { label = 'Manager',       color = '#ff0000' },
+    headstaff    = { label = 'Head Staff',    color = '#00e1ff' },
+    leadadmin    = { label = 'Lead Admin',    color = '#8f2ad1' },
+    headadmin    = { label = 'Head Admin',    color = '#ff6a00' },
+    generaladmin = { label = 'General Admin', color = '#ff6a00' },
+    junioradmin  = { label = 'Junior Admin',  color = '#ff6a00' },
+    trialadmin   = { label = 'Trial Admin',   color = '#ff6a00' },
+    headhelper   = { label = 'Head Helper',   color = '#37ff00' },
+    helper       = { label = 'Helper',        color = '#37ff00' },
+    trialhelper  = { label = 'Trial Helper',  color = '#37ff00' },
+}
+
+-- Ordine ierarhica (de la cel mai mic la cel mai mare) - pentru comparatii de permisiuni
+Config.StaffOrder = {
+    'trialhelper', 'helper', 'headhelper',
+    'trialadmin', 'junioradmin', 'generaladmin', 'headadmin', 'leadadmin',
+    'headstaff', 'manager', 'developer', 'owner',
+}

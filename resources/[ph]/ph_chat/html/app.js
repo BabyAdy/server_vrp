@@ -18,7 +18,7 @@ const sugEl = document.getElementById('suggestions');
 
 const state = {
     open: false,
-    cfg: { maxMessages: 100, fadeDelay: 18000, timestamps: true },
+    cfg: { maxMessages: 30, visibleLines: 17, fadeDelay: 18000, timestamps: true },
     suggestions: [],
     history: [],
     histIdx: -1,
@@ -75,11 +75,18 @@ function addMessage(data) {
     html += colorize(data.text || '', data.textColor);
     line.innerHTML = html;
 
+    const atBottom =
+        messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
+
     messagesEl.appendChild(line);
     while (messagesEl.children.length > state.cfg.maxMessages) {
         messagesEl.removeChild(messagesEl.firstChild);
     }
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // cand e deschis si esti scrollat in sus, nu te trage jos automat
+    if (!state.open || atBottom) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
 
     state.lastActivity = Date.now();
     chat.classList.remove('faded');
@@ -219,6 +226,7 @@ window.addEventListener('message', (ev) => {
     switch (d.type) {
         case 'config':
             Object.assign(state.cfg, d.data || {});
+            messagesEl.style.setProperty('--vis-lines', String(state.cfg.visibleLines || 17));
             break;
         case 'message':
             addMessage(d.data);

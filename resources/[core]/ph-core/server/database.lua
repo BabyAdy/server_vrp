@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email`         VARCHAR(120)    NOT NULL,
   `password`      VARCHAR(255)    NOT NULL,
   `license`       VARCHAR(64)     NOT NULL,
+  `staff`         VARCHAR(24)     NOT NULL DEFAULT '',
   `dob`           DATE            NULL DEFAULT NULL,
   `gender`        TINYINT         NOT NULL DEFAULT 0,
   `height`        SMALLINT        NOT NULL DEFAULT 180,
@@ -35,6 +36,16 @@ CreateThread(function()
 
     local ok, err = pcall(function()
         MySQL.query.await(USERS_SQL)
+
+        -- migratii lejere pentru baze existente
+        local hasStaff = MySQL.scalar.await([[
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'staff'
+        ]])
+        if (tonumber(hasStaff) or 0) == 0 then
+            MySQL.query.await("ALTER TABLE `users` ADD COLUMN `staff` VARCHAR(24) NOT NULL DEFAULT '' AFTER `license`")
+            print("^5[ph-core]^7 Migratie: adaugata coloana `users.staff`.")
+        end
     end)
 
     if not ok then

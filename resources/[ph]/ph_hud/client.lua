@@ -7,17 +7,45 @@ local needs = { hunger = Config.Needs.start, thirst = Config.Needs.start }
 local paycheckLeft = Config.Paycheck.intervalSec
 local statuses = {}   -- [id] = { label, value, expiresAt (GetGameTimer ms) | nil }
 
--- baza de timp real Romania, trimisa de server; interpolam local intre update-uri
-local timeBase = { epoch = os.time(), offset = 2, at = GetGameTimer() }
+-- baza de timp real Romania, trimisa de server (epoch UTC + offset ore);
+-- interpolam local intre update-uri. `os` nu exista pe client, deci calculam manual.
+local timeBase = { epoch = 0, offset = 2, at = GetGameTimer() }
 
 RegisterNetEvent('ph_hud:time', function(epoch, offset)
-    timeBase = { epoch = tonumber(epoch) or os.time(), offset = tonumber(offset) or 2, at = GetGameTimer() }
+    timeBase = { epoch = tonumber(epoch) or 0, offset = tonumber(offset) or 2, at = GetGameTimer() }
 end)
 
---- Data/ora curenta pentru Bucuresti, ca tabel os.date
+-- zile de la 1970-01-01 -> an, luna, zi (algoritmul civil al lui H. Hinnant)
+local function civilFromDays(z)
+    z = z + 719468
+    local era = math.floor((z >= 0 and z or (z - 146096)) / 146097)
+    local doe = z - era * 146097
+    local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+    local y = yoe + era * 400
+    local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+    local mp = math.floor((5 * doy + 2) / 153)
+    local d = doy - math.floor((153 * mp + 2) / 5) + 1
+    local m = (mp < 10) and (mp + 3) or (mp - 9)
+    if m <= 2 then y = y + 1 end
+    return y, m, d
+end
+
+--- Data/ora curenta Bucuresti ca tabel { year, month, day, hour, min, wday(0=Duminica) }
 local function romaniaNow()
-    local secs = timeBase.epoch + math.floor((GetGameTimer() - timeBase.at) / 1000)
-    return os.date('!*t', secs + timeBase.offset * 3600)
+    if timeBase.epoch == 0 then return nil end
+    local secs = timeBase.epoch
+        + timeBase.offset * 3600
+        + math.floor((GetGameTimer() - timeBase.at) / 1000)
+
+    local days = math.floor(secs / 86400)
+    local rem = secs % 86400
+    local y, m, d = civilFromDays(days)
+    return {
+        year = y, month = m, day = d,
+        hour = math.floor(rem / 3600),
+        min = math.floor((rem % 3600) / 60),
+        wday = (days % 7 + 4) % 7,   -- 1970-01-01 = Joi ; 0=Duminica .. 6=Sambata
+    }
 end
 
 -- ----------------------------------------------------------
@@ -116,9 +144,12 @@ CreateThread(function()
         local armor = math.floor(GetPedArmour(ped) + 0.5)
 
         local rt = romaniaNow()
-        -- os.date wday: 1=Duminica..7=Sambata ; month: 1..12
-        local dowName = Config.Days[(rt.wday - 1) % 7] or '?'
-        local monName = Config.Months[rt.month - 1] or '?'
+        local timeStr, dateStr = '--:--', '...'
+        if rt then
+            timeStr = ('%02d:%02d'):format(rt.hour, rt.min)
+            dateStr = ('%s, %d %s'):format(
+                Config.Days[rt.wday] or '?', rt.day, Config.Months[rt.month - 1] or '?')
+        end
 
         -- status list cu timp ramas
         local now = GetGameTimer()
@@ -142,8 +173,8 @@ CreateThread(function()
             armor = armor,
             hunger = math.floor(needs.hunger + 0.5),
             thirst = math.floor(needs.thirst + 0.5),
-            time = ('%02d:%02d'):format(rt.hour, rt.min),
-            date = ('%s, %d %s'):format(dowName, rt.day, monName),
+            time = timeStr,
+            date = dateStr,
             talking = NetworkIsPlayerTalking(PlayerId()) == 1 or NetworkIsPlayerTalking(PlayerId()) == true,
             paycheck = fmtClock(paycheckLeft),
             statuses = list,

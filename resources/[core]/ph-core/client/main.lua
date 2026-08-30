@@ -95,6 +95,14 @@ exports('IsLoaded', function()
     return PH.Loaded == true
 end)
 
+exports('GetStaffGrade', function(key)
+    return Config.StaffGrades[key or '']
+end)
+
+exports('GetStaffGrades', function()
+    return Config.StaffGrades
+end)
+
 --- Actualizeaza o valoare local si anunta celelalte resurse.
 --- Server: TriggerClientEvent('ph-core:client:setData', src, 'money', 1234)
 RegisterNetEvent('ph-core:client:setData', function(key, value)

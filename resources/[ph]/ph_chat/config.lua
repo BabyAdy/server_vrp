@@ -4,7 +4,8 @@ Config = {}
 Config.OpenKey = 'T'       -- deschide chat-ul pentru un mesaj normal
 Config.CmdKey  = '/'       -- deschide chat-ul cu "/" pus, pentru comenzi
 
-Config.MaxMessages      = 100     -- cate linii pastreaza in istoric
+Config.MaxMessages      = 30      -- cate linii pastreaza in buffer (vizibile prin scroll cand e deschis)
+Config.VisibleLines     = 17      -- cate linii se vad cand chat-ul e inchis
 Config.FadeDelay        = 18000   -- ms fara activitate pana se estompeaza (cand e inchis)
 Config.ShowTimestamps   = true    -- prefix [HH:MM] pe fiecare linie (ora din joc)
 Config.MessageMaxLength = 256

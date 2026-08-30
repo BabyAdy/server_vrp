@@ -20,6 +20,7 @@ server_scripts {
     'server/database.lua',
     'server/account.lua',
     'server/character.lua',
+    'server/public.lua',
     'server/main.lua',
 }
 

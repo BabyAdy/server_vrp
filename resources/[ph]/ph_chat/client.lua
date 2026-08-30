@@ -16,7 +16,8 @@ end
 local function openChat(prefill)
     if chatOpen then return end
     chatOpen = true
-    SetNuiFocus(true, false)
+    SetNuiFocus(true, true)          -- tastatura + cursor (ca sa poti da scroll)
+    SetNuiFocusKeepInput(false)
     SendNUIMessage({ type = 'open', prefill = prefill or '' })
 end
 
@@ -25,9 +26,10 @@ end
 -- ----------------------------------------------------------
 RegisterNUICallback('ready', function(_, cb)
     SendNUIMessage({ type = 'config', data = {
-        maxMessages = Config.MaxMessages,
-        fadeDelay   = Config.FadeDelay,
-        timestamps  = Config.ShowTimestamps,
+        maxMessages  = Config.MaxMessages,
+        visibleLines = Config.VisibleLines,
+        fadeDelay    = Config.FadeDelay,
+        timestamps   = Config.ShowTimestamps,
     }})
     SendNUIMessage({ type = 'suggestions', data = suggestionList() })
     cb('ok')

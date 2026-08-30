@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `email`         VARCHAR(120)    NOT NULL,
   `password`      VARCHAR(255)    NOT NULL,               -- hash scrypt
   `license`       VARCHAR(64)     NOT NULL,
+  `staff`         VARCHAR(24)     NOT NULL DEFAULT '',    -- cheia gradului de staff (vezi Config.StaffGrades)
 
   -- date de personaj (NULL pana la creare; dob IS NULL => fara personaj)
   `dob`           DATE            NULL DEFAULT NULL,

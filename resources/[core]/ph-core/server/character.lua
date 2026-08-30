@@ -45,6 +45,8 @@ function PH.Character.Load(src, row)
         premiumpoints = tonumber(row.premiumpoints) or 0,
         playtime      = tonumber(row.playtime) or 0,
         appearance    = row.appearance,
+        staff         = row.staff or '',
+        badges        = {},
         spawn         = Config.NewCharacterSpawn,
     }
 
