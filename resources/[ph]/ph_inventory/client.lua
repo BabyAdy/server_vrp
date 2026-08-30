@@ -45,6 +45,10 @@ RegisterNUICallback('unequip', function(d, cb) TriggerServerEvent('ph_inventory:
 RegisterNUICallback('setHotbar', function(d, cb) TriggerServerEvent('ph_inventory:sv:setHotbar', d.hotIndex, d.slot); cb('ok') end)
 RegisterNUICallback('pickup', function(d, cb) TriggerServerEvent('ph_inventory:sv:pickup', d.id); cb('ok') end)
 
+RegisterNetEvent('ph_inventory:cl:config', function(cfg)
+    SendNUIMessage({ action = 'config', data = cfg })
+end)
+
 RegisterNetEvent('ph_inventory:cl:state', function(state)
     SendNUIMessage({ action = 'state', data = state })
 end)
