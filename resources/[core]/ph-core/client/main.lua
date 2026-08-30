@@ -83,3 +83,22 @@ CreateThread(function()
         Wait(0)
     end
 end)
+
+-- ----------------------------------------------------------
+--  API client pentru alte resurse (ph_hud, ph_chat, ...)
+-- ----------------------------------------------------------
+exports('GetCharacter', function()
+    return PH.Character
+end)
+
+exports('IsLoaded', function()
+    return PH.Loaded == true
+end)
+
+--- Actualizeaza o valoare local si anunta celelalte resurse.
+--- Server: TriggerClientEvent('ph-core:client:setData', src, 'money', 1234)
+RegisterNetEvent('ph-core:client:setData', function(key, value)
+    if type(PH.Character) ~= 'table' or type(key) ~= 'string' then return end
+    PH.Character[key] = value
+    TriggerEvent('ph-core:client:dataChanged', key, value, PH.Character)
+end)

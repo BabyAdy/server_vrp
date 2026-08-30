@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="hud" class="hidden">
+
+        <!-- DREAPTA SUS -->
+        <div id="tr">
+            <div class="pid">[ID: <span id="pid">0</span>]</div>
+            <div class="pline">
+                <span class="k">Player</span>
+                <span id="pname">-</span>
+            </div>
+            <div class="srv">
+                <span class="dot"></span>
+                <span id="online">0</span> online
+                <span id="server" class="brand">PURPLE HAVOC</span>
+            </div>
+            <div class="clock">
+                <span id="time">00:00</span>
+                <span class="sep">—</span>
+                <span id="date">-</span>
+            </div>
+            <div class="wallet">
+                <div class="w"><span class="k">Cash</span><span id="cash" class="cash">$0</span></div>
+                <div class="w"><span class="k">Bank</span><span id="bank" class="bank">$0</span></div>
+            </div>
+
+            <div id="statuses"></div>
+        </div>
+
+        <!-- STANGA JOS (langa minimap) -->
+        <div id="bl">
+            <div class="toprow">
+                <div class="paycheck"><span class="k">Paycheck</span><span id="paycheck">00:00</span></div>
+                <div id="mic" class="mic" title="Microfon">MIC</div>
+            </div>
+
+            <div class="bar" data-b="hp">
+                <span class="k">Health</span>
+                <div class="track"><i id="hp"></i></div>
+                <span id="hpv" class="v">0%</span>
+            </div>
+            <div class="bar" data-b="ar">
+                <span class="k">Armor</span>
+                <div class="track"><i id="ar"></i></div>
+                <span id="arv" class="v">0%</span>
+            </div>
+            <div class="bar" data-b="hu">
+                <span class="k">Food</span>
+                <div class="track"><i id="hu"></i></div>
+                <span id="huv" class="v">0%</span>
+            </div>
+            <div class="bar" data-b="th">
+                <span class="k">Water</span>
+                <div class="track"><i id="th"></i></div>
+                <span id="thv" class="v">0%</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

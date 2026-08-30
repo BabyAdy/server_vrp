@@ -47,14 +47,13 @@ body {
     opacity: 1;
 }
 
-/* fundal cu gradient / vignette, lasa jocul sa se vada partial */
+/* fara fundal negru - se vede jocul in spate; doar un halo mov discret */
 .bg-glow {
     position: absolute;
     inset: 0;
     background:
-        radial-gradient(1200px 700px at 50% 8%, rgba(124, 58, 237, 0.35), transparent 60%),
-        radial-gradient(900px 600px at 85% 90%, rgba(76, 29, 149, 0.35), transparent 60%),
-        linear-gradient(180deg, rgba(8, 5, 16, 0.55), rgba(8, 5, 16, 0.78));
+        radial-gradient(900px 600px at 50% 12%, rgba(124, 58, 237, 0.18), transparent 62%),
+        radial-gradient(700px 500px at 85% 92%, rgba(76, 29, 149, 0.14), transparent 62%);
     pointer-events: none;
 }
 

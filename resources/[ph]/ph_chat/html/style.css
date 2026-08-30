@@ -1,0 +1,124 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.hidden { display: none !important; }
+
+#chat {
+    position: absolute;
+    top: 2.2vh;
+    left: 1.2vw;
+    width: 38vw;
+    min-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: opacity 0.4s ease;
+}
+
+#chat.faded { opacity: 0.25; }
+#chat.open  { opacity: 1; }
+
+/* ---------------------------------------------------- messages */
+#messages {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    max-height: 34vh;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(168, 140, 255, 0.5) transparent;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 26px);
+}
+
+#messages::-webkit-scrollbar { width: 6px; }
+#messages::-webkit-scrollbar-thumb { background: rgba(168, 140, 255, 0.5); border-radius: 3px; }
+
+#chat.open #messages { overflow-y: auto; }
+#chat:not(.open) #messages { overflow: hidden; }
+
+.line {
+    color: #e8e6f0;
+    font-size: 14px;
+    line-height: 1.42;
+    padding: 1px 0;
+    word-wrap: break-word;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);
+}
+
+.line .stamp {
+    color: #9a93b8;
+    margin-right: 5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.line .prefix { font-weight: 700; }
+.line .prefix::after { content: ':'; color: #cfc9e6; font-weight: 700; margin: 0 4px 0 0; }
+.line.system { color: #b8b2d4; font-style: italic; }
+.line.system .prefix { display: none; }
+
+/* ---------------------------------------------------- input */
+#inputbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(14, 10, 24, 0.82);
+    border: 1px solid rgba(168, 140, 255, 0.35);
+    border-radius: 8px;
+    padding: 8px 10px;
+    backdrop-filter: blur(6px);
+}
+
+#prompt {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #b98cff;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(124, 58, 237, 0.22);
+}
+
+#input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+/* ---------------------------------------------------- suggestions */
+#suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(14, 10, 24, 0.82);
+    border: 1px solid rgba(168, 140, 255, 0.25);
+    border-radius: 8px;
+    padding: 6px;
+    backdrop-filter: blur(6px);
+}
+
+.sug {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+}
+
+.sug.active { background: rgba(124, 58, 237, 0.28); }
+.sug .name { color: #b98cff; font-weight: 700; }
+.sug .help { color: #a89bc7; font-size: 12px; }
+.sug .params { color: #6f6790; font-size: 12px; }
