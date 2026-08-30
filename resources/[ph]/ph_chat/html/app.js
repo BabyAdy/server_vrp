@@ -18,7 +18,7 @@ const sugEl = document.getElementById('suggestions');
 
 const state = {
     open: false,
-    cfg: { maxMessages: 30, visibleLines: 17, fadeDelay: 18000, timestamps: true },
+    cfg: { maxMessages: 47, visibleLines: 17, fadeDelay: 18000, timestamps: true },
     suggestions: [],
     history: [],
     histIdx: -1,

@@ -24,17 +24,32 @@ AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
         return
     end
 
-    local hasLicense = false
+    local license
     for _, id in ipairs(GetPlayerIdentifiers(src)) do
         if id:sub(1, 8) == 'license:' then
-            hasLicense = true
+            license = id
             break
         end
     end
 
-    if not hasLicense then
+    if not license then
         deferrals.done('Nu ai o licenta FiveM/Rockstar valida. Porneste jocul prin launcher-ul oficial.')
         return
+    end
+
+    -- verificare de ban (staff_menu, optional)
+    if GetResourceState('staff_menu') == 'started' then
+        local ok, ban = pcall(function()
+            return exports['staff_menu']:CheckBan(license)
+        end)
+        if ok and type(ban) == 'table' then
+            local when = ban.expires_at
+                and ('Expira: ' .. os.date('%d.%m.%Y %H:%M', ban.expires_at))
+                or 'Permanent'
+            deferrals.done(('\n\n[Purple Havoc] Cont banat.\nMotiv: %s\n%s\nID ban: #%s')
+                :format(ban.reason or '-', when, ban.id or '?'))
+            return
+        end
     end
 
     deferrals.done()
@@ -60,6 +75,10 @@ end)
 exports('IsPlayerLoaded', function(src)
     local p = PH.Players[src]
     return (p and p.character) ~= nil
+end)
+
+exports('GetLicense', function(src)
+    return PH.GetLicense and PH.GetLicense(src) or nil
 end)
 
 -- ----------------------------------------------------------

@@ -87,6 +87,42 @@ exports('GetStaffGrade', function(key)
     return Config.StaffGrades[key or '']
 end)
 
+exports('GetStaffGrades', function()
+    return Config.StaffGrades
+end)
+
+-- ----------------------------------------------------------
+--  Rang de staff (Config.StaffOrder: 1 = cel mai mic ... N = cel mai mare)
+-- ----------------------------------------------------------
+local function staffRankIndex(key)
+    if not key or key == '' then return 0 end
+    for i, k in ipairs(Config.StaffOrder) do
+        if k == key then return i end
+    end
+    return 0
+end
+PH.StaffRankIndex = staffRankIndex
+
+--- Indexul de rang al unui jucator (0 = fara staff)
+exports('GetStaffRank', function(src)
+    local p = PH.Players[src]
+    return p and p.character and staffRankIndex(p.character.staff) or 0
+end)
+
+--- Indexul de rang al unei chei de grad (ex: 'manager') ; 0 daca nu exista
+exports('StaffRankOf', function(key)
+    return staffRankIndex(key)
+end)
+
+--- true daca jucatorul are cel putin gradul `minKey` (ex: 'trialhelper')
+exports('HasStaffRank', function(src, minKey)
+    local p = PH.Players[src]
+    if not p or not p.character then return false end
+    local need = staffRankIndex(minKey)
+    if need == 0 then return false end
+    return staffRankIndex(p.character.staff) >= need
+end)
+
 -- ----------------------------------------------------------
 --  Comanda de test / administrare de baza
 -- ----------------------------------------------------------
@@ -116,4 +152,41 @@ RegisterCommand('setstaff', function(src, args)
         { grade, PH.Players[target].character.id })
     PH.PushPublic(target)
     print(('staff pentru %d setat la %q'):format(target, grade))
+end, false)
+
+-- ----------------------------------------------------------
+--  /staffmenu - disponibil pentru staff >= trialhelper
+-- ----------------------------------------------------------
+local function notify(src, text, color)
+    if GetResourceState('ph_chat') == 'started' then
+        exports['ph_chat']:send(src, { text = text, textColor = color or '#e8e6f0' })
+    else
+        TriggerClientEvent('chat:addMessage', src, { args = { text } })
+    end
+end
+
+RegisterCommand('staffmenu', function(src)
+    if src == 0 then
+        print('[ph-core] /staffmenu se foloseste in joc.')
+        return
+    end
+
+    local player = PH.Players[src]
+    if not player or not player.character
+       or staffRankIndex(player.character.staff) < staffRankIndex('trialhelper') then
+        notify(src, 'Nu ai acces la meniul de staff.', '#e07a7a')
+        return
+    end
+
+    if GetResourceState('staff_menu') ~= 'started' then
+        notify(src, 'Meniul de staff nu este disponibil momentan.', '#e07a7a')
+        return
+    end
+
+    local grade = Config.StaffGrades[player.character.staff]
+    TriggerClientEvent('ph-core:staff:openMenu', src, {
+        grade = player.character.staff,
+        label = grade and grade.label or nil,
+        rank = staffRankIndex(player.character.staff),
+    })
 end, false)

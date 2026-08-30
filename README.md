@@ -96,6 +96,27 @@ conectare → NUI loading
 | Comandă        | Cine           | Efect                                             |
 |----------------|----------------|---------------------------------------------------|
 | `/phresetchar` | admin (ace `ph.admin`) sau consolă | resetează datele de personaj (`dob=NULL`, level/rp/bani) și te dă afară — pentru re-testarea creării |
+| `/setstaff <id> <grad>` | ace `ph.admin` / consolă | setează gradul de staff (persistent). Ex: `setstaff 1 owner` |
+| `/staffmenu`   | staff ≥ `trialhelper` | deschide meniul de staff |
+| `/ticket [categorie] <mesaj>` | orice jucător | creează un tichet (categorii: general, bug, report, question, refund) |
+
+## Staff menu (`resources/[ph]/staff_menu`)
+
+Meniu mov, 5 tab-uri. Fiecare acțiune e re-verificată pe server după `Config.Perms` din
+[staff_menu/config.lua](resources/[ph]/staff_menu/config.lua) (acțiune → grad minim). Nu poți acționa
+asupra unui staff de rang egal/superior.
+
+- **Staff** — Goto / Bring / Spectate / Freeze / Revive / Heal / Warn / Kick / Ban / Unban / Announce (filtrate după grad; țintă aleasă din *Players*)
+- **Tickets** — ticketele deschise; Accept / Close
+- **Active Tickets** — ticketele acceptate de tine; Goto / Reply / Close
+- **Players** — listă live, căutare după SQL ID / Username, Select → țintă pentru tab-ul Staff
+- **Developer** (grad ≥ `manager`) — set staff, restart resursă, TP la coordonate, info server
+
+SQL: importă [sql/002_staff.sql](sql/002_staff.sql) (tabele `tickets`, `ticket_replies`, `staff_logs`,
+`bans`, `warns`) — sau lasă `staff_menu` să le creeze la pornire. Ban-urile se verifică la conectare
+(`bans.expires_at` = unix secunde, `NULL` = permanent).
+
+> `Goto` / `Bring` / `Spectate` citesc poziția țintei pe server → **necesită OneSync pornit** (txAdmin → Settings → FXServer).
 
 ## Următorii pași propuși (v2)
 

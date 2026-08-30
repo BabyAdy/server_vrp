@@ -32,8 +32,7 @@ html, body {
     --vis-lines: 17;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    max-height: calc(var(--line-h) * var(--vis-lines));   /* inchis: ultimele ~17 linii */
+    max-height: calc(var(--line-h) * var(--vis-lines));   /* inchis: mereu ultimele 17 linii */
     overflow: hidden;
     padding-right: 6px;
     scrollbar-width: thin;
@@ -41,12 +40,18 @@ html, body {
     mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
 }
 
+/*
+ * Lipeste mesajele de baza cand sunt putine, DAR fara `justify-content: flex-end`
+ * (care ar taia definitiv liniile vechi si ar bloca scroll-ul in sus).
+ */
+#messages::before { content: ''; margin-top: auto; flex: 0 0 auto; }
+
 #messages::-webkit-scrollbar { width: 7px; }
 #messages::-webkit-scrollbar-thumb { background: rgba(168, 140, 255, 0.55); border-radius: 4px; }
 
-/* deschis: buffer complet (max 30 linii), scroll cu mouse / PageUp-PageDown */
+/* deschis: se vad si cele ~30 de linii de deasupra, prin scroll (rotita mouse / PageUp-PageDown) */
 #chat.open #messages {
-    max-height: min(62vh, calc(var(--line-h) * 31));
+    max-height: min(64vh, calc(var(--line-h) * 48));
     overflow-y: auto;
     mask-image: none;
     background: rgba(10, 7, 18, 0.34);
@@ -56,6 +61,7 @@ html, body {
 }
 
 .line {
+    flex: 0 0 auto;
     color: #e8e6f0;
     font-size: 14px;
     line-height: 1.5;
