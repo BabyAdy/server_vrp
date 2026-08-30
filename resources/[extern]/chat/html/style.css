@@ -1,0 +1,137 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+    user-select: none;
+}
+
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+#fps {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 400;
+    font-style: normal;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    letter-spacing: 0.2px;
+}
+
+#messages {
+    position: absolute;
+    top: 28px;
+    left: 10px;
+    width: min(720px, 55vw);
+    max-height: 340px;          /* inchis: ~17 linii, restul e taiat sus */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 1px;
+}
+
+/* deschis (tasta T): cursor activ + scroll prin tot buffer-ul (max 30 linii) */
+body.chat-open #messages {
+    max-height: 60vh;
+    overflow-y: auto;
+    pointer-events: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+body.chat-open #messages::-webkit-scrollbar { width: 7px; }
+body.chat-open #messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+}
+
+.msg {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    font-style: italic;
+    line-height: 1.28;
+    text-shadow:
+        1.5px 1.5px 0 #000,
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        0 0 2px #000;
+    word-wrap: break-word;
+    opacity: 1;
+    transition: opacity 0.45s ease;
+}
+
+.msg.fade {
+    opacity: 0;
+}
+
+.msg .time,
+.msg .name,
+.msg .id,
+.msg .sep,
+.msg .text {
+    color: #fff;
+}
+
+.msg .rank {
+    color: #ff0000;
+}
+
+#input-wrap {
+    position: absolute;
+    left: 10px;
+    bottom: 18%;
+    width: min(820px, 78vw);
+    pointer-events: auto;
+}
+
+#input-wrap.hidden {
+    display: none;
+}
+
+#chat-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 12px;
+    border: none;
+    outline: none;
+    background: rgba(0, 0, 0, 0.62);
+    color: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    font-style: normal;
+    caret-color: #fff;
+}
+
+#chat-input::placeholder {
+    color: rgba(200, 200, 200, 0.85);
+    font-style: italic;
+    font-weight: 400;
+}
+
+/* Preview standalone (deschide index.html în browser) */
+body.preview {
+    background:
+        linear-gradient(180deg, rgba(20, 40, 30, 0.35), rgba(10, 20, 40, 0.45)),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='900'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%232a5a3a'/%3E%3Cstop offset='1' stop-color='%231a3a5a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23g)'/%3E%3C/svg%3E")
+        center / cover no-repeat;
+}
