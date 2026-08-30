@@ -116,7 +116,13 @@ local function loadInv(src)
     local char = charOf(src)
     if not char then return end
 
-    local row = MySQL.single.await('SELECT inventory, inv_slots FROM users WHERE id = ?', { char.id })
+    local okQ, row = pcall(function()
+        return MySQL.single.await('SELECT inventory, inv_slots FROM users WHERE id = ?', { char.id })
+    end)
+    if not okQ then
+        print('^1[ph_inventory] SELECT users.inventory a esuat (coloane lipsa?):^7 ' .. tostring(row))
+        row = nil
+    end
     local slots = (row and tonumber(row.inv_slots)) or Config.DefaultSlots
     local data = { items = {}, equipment = {}, hotbar = {} }
 

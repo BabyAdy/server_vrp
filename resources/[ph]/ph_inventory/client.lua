@@ -77,18 +77,34 @@ end)
 local function applyEquipment(map)
     equipment = map or {}
     local ped = PlayerPedId()
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return end
+
     for eqSlot, cfg in pairs(Config.EquipmentSlots) do
         local worn = equipment[eqSlot]
         local def = worn and Config.Items[worn.name]
+
         if cfg.kind == 'component' then
-            if def then
-                SetPedComponentVariation(ped, cfg.id, def.drawable or 0, def.texture or 0, 0)
-            else
-                SetPedComponentVariation(ped, cfg.id, 0, 0, 0)
+            -- setam DOAR daca exista o haina si drawable-ul e valid pentru ped-ul curent
+            if def and def.drawable then
+                local maxDraw = GetNumberOfPedDrawableVariations(ped, cfg.id)
+                local dr = math.floor(def.drawable)
+                if dr >= 0 and dr < maxDraw then
+                    local maxTex = GetNumberOfPedTextureVariations(ped, cfg.id, dr)
+                    local tx = math.floor(def.texture or 0)
+                    if tx < 0 or tx >= maxTex then tx = 0 end
+                    SetPedComponentVariation(ped, cfg.id, dr, tx, 0)
+                end
             end
+            -- fara reset la 0 pe dezechipare (poate crapa jocul + arata prost fara sistem de appearance)
         else
-            if def then
-                SetPedPropIndex(ped, cfg.id, def.drawable or 0, def.texture or 0, true)
+            if def and def.drawable then
+                local maxDraw = GetNumberOfPedPropDrawableVariations(ped, cfg.id)
+                local dr = math.floor(def.drawable)
+                if dr >= 0 and dr < maxDraw then
+                    SetPedPropIndex(ped, cfg.id, dr, math.floor(def.texture or 0), true)
+                else
+                    ClearPedProp(ped, cfg.id)
+                end
             else
                 ClearPedProp(ped, cfg.id)
             end

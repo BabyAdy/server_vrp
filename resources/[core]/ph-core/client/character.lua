@@ -39,14 +39,28 @@ function PH.FinalizeSpawn(char)
     -- model
     local modelName = (char.gender == 1) and Config.PedModels.female or Config.PedModels.male
     local model = joaat(modelName)
-    RequestModel(model)
-    local t = 0
-    while not HasModelLoaded(model) and t < 300 do
-        Wait(10)
-        t = t + 1
+
+    if not IsModelInCdimage(model) or not IsModelValid(model) then
+        print(('^1[ph-core] Model invalid: %s (%s) - pastrez modelul curent.^7'):format(modelName, model))
+    else
+        -- cerem repetat modelul; pe un joc cu mult DLC poate dura mult sa se incarce
+        local waited = 0
+        RequestModel(model)
+        while not HasModelLoaded(model) and waited < 20000 do
+            RequestModel(model)
+            Wait(50)
+            waited = waited + 50
+        end
+
+        if HasModelLoaded(model) then
+            -- SetPlayerModel pe un model neincarcat => CRASH nativ, de-asta verificam
+            SetPlayerModel(PlayerId(), model)
+            SetModelAsNoLongerNeeded(model)
+            Wait(100)   -- lasa noul ped sa se creeze inainte de PlayerPedId()
+        else
+            print(('^1[ph-core] Modelul %s nu s-a incarcat in 20s - se pastreaza modelul implicit.^7'):format(modelName))
+        end
     end
-    SetPlayerModel(PlayerId(), model)
-    SetModelAsNoLongerNeeded(model)
 
     local ped = PlayerPedId()
     SetPedDefaultComponentVariation(ped)
