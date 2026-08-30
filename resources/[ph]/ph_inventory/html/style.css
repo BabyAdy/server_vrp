@@ -12,8 +12,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
 
 #inv {
     position: absolute; inset: 0;
-    background: linear-gradient(0deg, rgba(70,50,150,.42), rgba(70,50,150,.42)), rgba(40,28,80,.35);
-    backdrop-filter: blur(2px);
+    background: rgba(74, 54, 150, .5);
 }
 
 .layout {
@@ -81,6 +80,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
     background: linear-gradient(135deg, var(--v2), var(--v1));
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #fff;
+}
+.cell .ic {
+    width: 46px; height: 46px; object-fit: contain;
+    pointer-events: none; -webkit-user-drag: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.5));
 }
 .cell .cnt {
     position: absolute; top: 3px; right: 5px;
@@ -168,10 +172,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
 #tip b { color: var(--v1); }
 
 #ghost {
-    position: fixed; z-index: 50; pointer-events: none;
+    position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
     width: 52px; height: 52px; border-radius: 10px;
     background: linear-gradient(135deg, var(--v2), var(--v1));
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: 800; color: #fff; opacity: .92;
     box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    will-change: transform;
 }
+#ghost img { width: 40px; height: 40px; object-fit: contain; -webkit-user-drag: none; }

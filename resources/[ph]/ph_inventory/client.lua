@@ -111,7 +111,7 @@ local function holster()
         TriggerServerEvent('ph_inventory:sv:weaponSync', equipped.slot, equipped.ammo, equipped.durability)
     end
     RemoveWeaponFromPed(ped, equipped.hash)
-    SetCurrentPedWeapon(ped, `WEAPON_UNARMED`, true)
+    SetCurrentPedWeapon(ped, GetHashKey('WEAPON_UNARMED'), true)
     equipped = nil
 end
 
@@ -119,8 +119,8 @@ RegisterNetEvent('ph_inventory:cl:equipWeapon', function(w)
     local ped = PlayerPedId()
     local hash = GetHashKey(w.weaponName)
 
-    -- toggle: aceeasi arma -> holster
-    if equipped and equipped.hash == hash then
+    -- toggle: acelasi fast slot -> baga arma la loc
+    if equipped and equipped.slot == w.slot then
         holster()
         return
     end
@@ -182,22 +182,23 @@ CreateThread(function()
     end
 end)
 
--- hotbar 1..5  (keybinds proprii; roata de arme GTA e dezactivata mai jos)
-for i = 1, Config.HotbarSlots do
-    RegisterCommand('phhot' .. i, function()
-        if isLoaded() and not open and not IsPauseMenuActive() then
-            TriggerServerEvent('ph_inventory:sv:useHotbar', i)
-        end
-    end, false)
-    RegisterKeyMapping('phhot' .. i, 'Fast slot ' .. i, 'keyboard', tostring(i))
-end
+-- Fast slots: tastele 1..5 = controalele 157..161.
+-- Dezactivam selectarea de arme nativa (roata + 1..9) si citim direct tastele.
+local HOTBAR_CONTROLS = { 157, 158, 159, 160, 161 }
 
--- dezactiveaza selectarea de arme nativa (folosim doar fast slots)
 CreateThread(function()
     while true do
         if isLoaded() then
-            DisableControlAction(0, 37, true)          -- weapon wheel
-            for c = 157, 165 do DisableControlAction(0, c, true) end   -- 1..9 weapon select
+            DisableControlAction(0, 37, true)                       -- weapon wheel
+            for c = 157, 165 do DisableControlAction(0, c, true) end -- 1..9 weapon select
+
+            if not open and not IsPauseMenuActive() then
+                for i = 1, Config.HotbarSlots do
+                    if IsDisabledControlJustPressed(0, HOTBAR_CONTROLS[i] or -1) then
+                        TriggerServerEvent('ph_inventory:sv:useHotbar', i)
+                    end
+                end
+            end
             Wait(0)
         else
             Wait(500)

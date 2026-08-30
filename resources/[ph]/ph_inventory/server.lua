@@ -97,11 +97,19 @@ local function serialize(inv)
     return json.encode({ items = inv.items, equipment = inv.equipment, hotbar = inv.hotbar })
 end
 
-local function saveInv(src)
+local dirty = {}   -- [src] = true  (scriere debounce)
+
+local function writeInv(src)
     local inv = INV[src]
     local char = charOf(src)
     if not inv or not char then return end
+    dirty[src] = nil
     MySQL.update('UPDATE users SET inventory = ? WHERE id = ?', { serialize(inv), char.id })
+end
+
+--- marcheaza pentru scriere; flush-ul e la fiecare 15s (vezi thread-ul de mai jos)
+local function saveInv(src)
+    dirty[src] = true
 end
 
 local function loadInv(src)
@@ -133,21 +141,30 @@ end
 -- ----------------------------------------------------------
 --  Operatii pe inventar
 -- ----------------------------------------------------------
-local function pushState(src)
+-- config-ul static se trimite o singura data (la deschidere)
+local function pushConfig(src)
     local inv = INV[src]
-    if not inv then return end
-    TriggerClientEvent('ph_inventory:cl:state', src, {
-        slots = inv.slots,
+    TriggerClientEvent('ph_inventory:cl:config', src, {
+        slots = inv and inv.slots or Config.DefaultSlots,
         maxWeight = Config.MaxWeight,
-        weight = weightOf(inv),
-        items = inv.items,
-        equipment = inv.equipment,
-        hotbar = inv.hotbar,
         defs = Config.Items,
         equipmentSlots = Config.EquipmentSlots,
         equipmentOrder = Config.EquipmentOrder,
         hotbarSlots = Config.HotbarSlots,
         weapon = Config.Weapon,
+    })
+end
+
+-- datele dinamice - trimise des, cat mai mici
+local function pushState(src)
+    local inv = INV[src]
+    if not inv then return end
+    TriggerClientEvent('ph_inventory:cl:state', src, {
+        slots = inv.slots,
+        weight = weightOf(inv),
+        items = inv.items,
+        equipment = inv.equipment,
+        hotbar = inv.hotbar,
     })
 end
 
@@ -267,20 +284,24 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    if INV[src] then saveInv(src) end
+    if INV[src] then writeInv(src) end
     INV[src] = nil
+    dirty[src] = nil
 end)
 
+-- flush periodic al inventarelor modificate
 CreateThread(function()
     while true do
-        Wait(Config.SaveIntervalMs)
-        for src in pairs(INV) do saveInv(src) end
+        Wait(15000)
+        for src in pairs(dirty) do
+            if INV[src] then writeInv(src) end
+        end
     end
 end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
-    for src in pairs(INV) do saveInv(src) end
+    for src in pairs(INV) do writeInv(src) end
 end)
 
 -- ----------------------------------------------------------
@@ -289,6 +310,7 @@ end)
 RegisterNetEvent('ph_inventory:sv:request', function()
     local src = source
     if not INV[src] then loadInv(src) end
+    pushConfig(src)
     pushState(src)
 end)
 

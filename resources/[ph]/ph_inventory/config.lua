@@ -49,24 +49,26 @@ Config.HotbarSlots = 5
 -- ==========================================================
 Config.Items = {
     -- consumabile / misc
-    water    = { label = 'Sticla de apa', weight = 0.5, stack = 20,  type = 'item', usable = true, effect = 'thirst', value = 25 },
-    bread    = { label = 'Paine',         weight = 0.3, stack = 20,  type = 'item', usable = true, effect = 'hunger', value = 25 },
-    bandage  = { label = 'Bandaj',        weight = 0.2, stack = 10,  type = 'item', usable = true, effect = 'heal',   value = 25 },
-    phone    = { label = 'Telefon',       weight = 0.4, stack = 1,   type = 'item', usable = true, effect = 'phone' },
-    radio    = { label = 'Statie radio',  weight = 0.6, stack = 1,   type = 'item', usable = true, effect = 'radio' },
-    lockpick = { label = 'Lockpick',      weight = 0.2, stack = 10,  type = 'item', usable = true, effect = 'lockpick' },
-    cash     = { label = 'Teanc de bani', weight = 0.05, stack = 500, type = 'item' },
+    water      = { label = 'Sticla de apa', weight = 0.5, stack = 20,  type = 'item', usable = true, effect = 'thirst', value = 25 },
+    bread      = { label = 'Paine',         weight = 0.3, stack = 20,  type = 'item', usable = true, effect = 'hunger', value = 25 },
+    bandage    = { label = 'Bandaj',        weight = 0.2, stack = 10,  type = 'item', usable = true, effect = 'heal',   value = 25 },
+    phone      = { label = 'Telefon',       weight = 0.4, stack = 1,   type = 'item', usable = true, effect = 'phone' },
+    radio      = { label = 'Statie radio',  weight = 0.6, stack = 1,   type = 'item', usable = true, effect = 'radio' },
+    lockpick   = { label = 'Lockpick',      weight = 0.2, stack = 10,  type = 'item', usable = true, effect = 'lockpick' },
+    dirtymoney = { label = 'Teanc de bani', weight = 0.05, stack = 500, type = 'item' },
 
     -- arme
-    weapon_pistol = { label = 'Pistol', weight = 1.2, stack = 1, type = 'weapon', weaponName = 'WEAPON_PISTOL',      ammoType = 'ammo_pistol' },
-    weapon_smg    = { label = 'SMG',    weight = 2.5, stack = 1, type = 'weapon', weaponName = 'WEAPON_MICROSMG',    ammoType = 'ammo_smg' },
-    weapon_pump   = { label = 'Pusca',  weight = 3.5, stack = 1, type = 'weapon', weaponName = 'WEAPON_PUMPSHOTGUN', ammoType = 'ammo_shotgun' },
-    weapon_bat    = { label = 'Bata',   weight = 1.8, stack = 1, type = 'weapon', weaponName = 'WEAPON_BAT' },
+    weapon_pistol   = { label = 'Pistol', weight = 1.2, stack = 1, type = 'weapon', weaponName = 'WEAPON_PISTOL',      ammoType = 'ammo_pistol' },
+    weapon_pistol50 = {label = 'Pistol .50', weight = 1.2, stack = 1, type = 'weapon', weaponName = 'WEAPON_PISTOL50', ammoType = 'ammo_pistol50' },
+    weapon_smg      = { label = 'SMG',    weight = 2.5, stack = 1, type = 'weapon', weaponName = 'WEAPON_MICROSMG',    ammoType = 'ammo_smg' },
+    weapon_pump     = { label = 'Pusca',  weight = 3.5, stack = 1, type = 'weapon', weaponName = 'WEAPON_PUMPSHOTGUN', ammoType = 'ammo_shotgun' },
+    weapon_bat      = { label = 'Bata',   weight = 1.8, stack = 1, type = 'weapon', weaponName = 'WEAPON_BAT' },
 
     -- munitie
-    ammo_pistol  = { label = 'Gloante 9mm', weight = 0.02, stack = 500, type = 'ammo' },
-    ammo_smg     = { label = 'Gloante SMG', weight = 0.02, stack = 500, type = 'ammo' },
-    ammo_shotgun = { label = 'Cartuse',     weight = 0.05, stack = 500, type = 'ammo' },
+    ammo_pistol   = { label = 'Gloante 9mm', weight = 0.02, stack = 500, type = 'ammo' },
+    ammo_pistol50 = { label = 'Ammo .50', weight = 0.02, stack = 500, type = 'ammo' },
+    ammo_smg      = { label = 'Gloante SMG', weight = 0.02, stack = 500, type = 'ammo' },
+    ammo_shotgun  = { label = 'Cartuse',     weight = 0.05, stack = 500, type = 'ammo' },
 
     -- haine (drawable/texture pe ped freemode - exemple)
     clothing_cap    = { label = 'Sapca rosie',  weight = 0.2, stack = 1, type = 'clothing', slot = 'hat',    drawable = 5,  texture = 0 },

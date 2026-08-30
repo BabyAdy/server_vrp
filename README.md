@@ -116,7 +116,18 @@ grid central cu greutate `current/max`, **NEARBY ITEMS** + **DROP ITEMS** dreapt
 - itemele din `Config.Items` sunt exemple — le înlocuiești cu ale tale
 - SQL: [sql/003_inventory.sql](sql/003_inventory.sql) (coloane `users.inventory` / `users.inv_slots`) sau auto-creat la pornire
 - roata de arme nativă GTA e dezactivată — armele ies doar din fast slots
-- `Drop` / `Goto` folosesc poziția pe server → **OneSync pornit**
+- `Drop` folosește poziția pe server → **OneSync pornit**
+
+### Icoane pentru iteme
+
+Pui fișiere PNG în `resources/[ph]/ph_inventory/html/img/`, denumite **exact ca cheia itemului**
+din `Config.Items` (ex: `weapon_pistol.png`, `water.png`, `ammo_pistol.png`). Se încarcă automat,
+nu configurezi nimic. Recomandat 96×96 sau 128×128, fundal transparent.
+
+- alt nume de fișier? pune-l pe item: `water = { ..., image = 'apa.png' }`
+- lipsă imagine ⇒ apare un badge cu primele 3 litere (comportamentul de acum)
+- formate: `.png .webp .jpg .svg`
+- după ce adaugi imagini: `restart ph_inventory`
 
 ## Staff menu (`resources/[ph]/staff_menu`)
 

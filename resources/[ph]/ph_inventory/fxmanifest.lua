@@ -24,4 +24,8 @@ files {
     'html/index.html',
     'html/style.css',
     'html/app.js',
+    'html/img/*.png',
+    'html/img/*.webp',
+    'html/img/*.svg',
+    'html/img/*.jpg',
 }
