@@ -99,6 +99,24 @@ conectare → NUI loading
 | `/setstaff <id> <grad>` | ace `ph.admin` / consolă | setează gradul de staff (persistent). Ex: `setstaff 1 owner` |
 | `/staffmenu`   | staff ≥ `trialhelper` | deschide meniul de staff |
 | `/ticket [categorie] <mesaj>` | orice jucător | creează un tichet (categorii: general, bug, report, question, refund) |
+| `I`            | orice jucător | deschide inventarul |
+| `/giveitem <id> <item> [n]` | ace `ph.admin` / consolă | dă iteme unui jucător |
+| `/setslots <id> <n>` | ace `ph.admin` / consolă | mărește sloturile de inventar (default 100) — se face prin ticket |
+
+## Inventar (`resources/[ph]/ph_inventory`)
+
+Layout ca în screenshot: **echipament** stânga-sus (haine/accesorii care apar pe caracter),
+**FAST SLOTS** 1–5 stânga-jos (pui o armă pe slot 1 → apeși `1` → o scoți în mână),
+grid central cu greutate `current/max`, **NEARBY ITEMS** + **DROP ITEMS** dreapta.
+
+- sloturi default **100** (coloana `users.inv_slots`, măresc prin `/setslots` = ticket); greutate max `Config.MaxWeight`
+- click-dreapta pe item → **use / split / drop**
+- **drop**: itemele stau **10 minute** pe jos, le ridică orice jucător din apropiere (`E`)
+- **arme**: tragi stiva de gloanțe **peste armă** ca s-o încarci (max **500**, tipul de muniție trebuie să se potrivească); fiecare foc scade gloanțele încărcate **și durabilitatea**; durabilitate 0 = arma nu se mai poate echipa; ții cursorul ~2s pe armă → tooltip cu gloanțe/durabilitate
+- itemele din `Config.Items` sunt exemple — le înlocuiești cu ale tale
+- SQL: [sql/003_inventory.sql](sql/003_inventory.sql) (coloane `users.inventory` / `users.inv_slots`) sau auto-creat la pornire
+- roata de arme nativă GTA e dezactivată — armele ies doar din fast slots
+- `Drop` / `Goto` folosesc poziția pe server → **OneSync pornit**
 
 ## Staff menu (`resources/[ph]/staff_menu`)
 
