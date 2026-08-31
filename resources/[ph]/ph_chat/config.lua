@@ -11,7 +11,7 @@ Config.ScrollbackLines  = 50      -- linii suplimentare pastrate deasupra, vizib
 Config.FadeDelay        = 18000   -- ms fara activitate pana se estompeaza (cand e inchis)
 Config.ShowTimestamps   = true    -- prefix [HH:MM] pe fiecare linie (ora din joc)
 Config.MessageMaxLength = 256
-Config.ShowIdInChat     = false   -- true => prefix "[sqlid] Nume" la mesajele jucatorilor
+Config.ShowIdInChat     = true   -- true => prefix "[sqlid] Nume" la mesajele jucatorilor
 
 -- ==========================================================
 --  Premium Chat  (/pc [mesaj])

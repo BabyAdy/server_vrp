@@ -20,7 +20,7 @@ Config.PlayerRefreshMs = 5000       -- cat de des se reimprospateaza lista de pl
 Config.NoticeMinGrade = 'trialhelper'
 
 Config.Discord = {
-    Webhook  = '',                       -- pune aici URL-ul webhook-ului (gol = dezactivat)
+    Webhook  = 'https://discord.com/api/webhooks/1543915218181038080/uiH2_eCpCaB5wjJY3bsV2sd-y4-kzgBWKq1ZWRCBdNgtop664U77ZpCv2_mqJo8jkEFQ',                       -- pune aici URL-ul webhook-ului (gol = dezactivat)
     Username = 'Purple Havoc | Staff',
     Avatar   = '',                       -- URL avatar (optional)
     Colors   = { connect = 3066993, disconnect = 15105570, crash = 15158332 },
