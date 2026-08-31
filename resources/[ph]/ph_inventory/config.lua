@@ -41,6 +41,27 @@ Config.EquipmentOrder = {
     'glasses', 'bracelet', 'shoes', 'earrings', 'necklace', 'backpack',
 }
 
+-- ==========================================================
+--  Sloturi numerice unificate
+--  1..DefaultSlots        -> grid normal
+--  101..106               -> sloturi de haine (clothing) aplicate pe ped
+--  107..111               -> accesorii (rezervate; inca fara iteme in Config.Items)
+--  hotbar 1..HotbarSlots  -> pointeri catre sloturi de grid (arme / consumabile)
+--
+--  Toate au aceeasi validare: itemul tras trebuie sa fie type='clothing'
+--  si item.slot == cheia de echipament mapata mai jos.
+-- ==========================================================
+Config.EquipmentSlotIds = {
+    hat = 101, mask = 102, jacket = 103, pants = 104, shoes = 105, backpack = 106,
+    glasses = 107, earrings = 108, watch = 109, bracelet = 110, necklace = 111,
+}
+
+-- reverse lookup [idNumeric] = cheieEchipament
+Config.ClothingSlots = {}
+for _eqKey, _eqId in pairs(Config.EquipmentSlotIds) do
+    Config.ClothingSlots[_eqId] = _eqKey
+end
+
 Config.HotbarSlots = 5
 
 -- ==========================================================
