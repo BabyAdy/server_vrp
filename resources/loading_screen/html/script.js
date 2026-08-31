@@ -14,7 +14,7 @@ const CFG = {
     credit: 'Developed by: BabyAdy',
 
     // ── INTRO YOUTUBE ──────────────────────────────────
-    youtubeId: '',        // <-- ID-ul clipului de YouTube (ex: din youtu.be/XXXXXXXXXXX -> 'XXXXXXXXXXX')
+    youtubeId: 'c9XD1DZ0_dM',        // <-- ID-ul clipului de YouTube (ex: din youtu.be/XXXXXXXXXXX -> 'XXXXXXXXXXX')
     introVolume: 0.35,    // 0.0 - 1.0  (volumul implicit al clipului)
     introStart: 0,        // secunda de start in clip (optional)
 };
