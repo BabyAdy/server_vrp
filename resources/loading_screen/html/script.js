@@ -56,43 +56,67 @@ const ICO_ON = 'M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1
 const ICO_LOW = 'M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7';
 const ICO_OFF = 'M11 5 6 9H2v6h4l5 4V5z M23 9l-6 6 M17 9l6 6';
 
-function applyAudio() {
-    const effective = muted ? 0 : vol;
-    video.volume = effective / 100;
-    video.muted = effective === 0;
+const targetVol = () => (muted ? 0 : vol / 100);   // volumul dorit pentru clip (0..1)
 
+function paintAudioUI() {
+    const eff = muted ? 0 : vol;
     volSlider.value = vol;
     volSlider.style.setProperty('--fill', vol + '%');
-    muteBtn.classList.toggle('muted', effective === 0);
-    audioCtl.classList.toggle('muted', effective === 0);
-
+    muteBtn.classList.toggle('muted', eff === 0);
+    audioCtl.classList.toggle('muted', eff === 0);
     const ico = document.getElementById('mIco');
-    if (ico) ico.setAttribute('d', effective === 0 ? ICO_OFF : (effective < 45 ? ICO_LOW : ICO_ON));
-
+    if (ico) ico.setAttribute('d', eff === 0 ? ICO_OFF : (eff < 45 ? ICO_LOW : ICO_ON));
     try {
         localStorage.setItem('ph_ls_vol', String(vol));
         localStorage.setItem('ph_ls_muted', muted ? '1' : '0');
     } catch (e) {}
 }
-applyAudio();
 
+// aplica volumul REAL pe clip (sunetul vine din introv2.mp4, nu dintr-un .mp3)
+function applyAudio() {
+    paintAudioUI();
+    video.volume = targetVol();
+    video.muted = targetVol() === 0;
+}
+
+/* Redare - CEF-ul din FiveM permite autoplay CU sunet, deci clipul se aude
+   direct. `muted` se pune doar ca ultim resort daca redarea e refuzata
+   (browser normal / preview), apoi se dezmuteaza. */
 function tryPlay() {
+    if (!video.paused) { applyAudio(); return; }
+    video.muted = targetVol() === 0;          // incearca cu sunet
+    video.volume = targetVol();
     const p = video.play();
     if (p && p.catch) {
         p.catch(() => {
-            // ultima varianta: daca redarea cu sunet e blocata, ruleaza macar mut
-            const wasMuted = video.muted;
-            video.muted = true;
-            const p2 = video.play();
-            if (p2 && p2.then) p2.then(() => { if (!wasMuted && !muted) { video.muted = false; applyAudio(); } }).catch(() => {});
+            video.muted = true;               // refuzat -> porneste mut, dezmutam dupa
+            video.play().catch(() => {});
         });
     }
 }
+
+// cand clipul chiar ruleaza, aliniaza sunetul la setari (dezmuteaza daca a pornit mut fara sa vrei)
+video.addEventListener('playing', applyAudio);
+video.addEventListener('canplay', tryPlay);
+video.addEventListener('loadeddata', tryPlay);
+video.addEventListener('error', () => {
+    const s = document.getElementById('status');
+    if (s) s.textContent = 'intro: eroare la incarcarea clipului (' + (video.error ? video.error.code : '?') + ')';
+});
+
+paintAudioUI();
 tryPlay();
-window.addEventListener('click', tryPlay, { once: false });
-window.addEventListener('keydown', tryPlay, { once: false });
-video.addEventListener('canplay', tryPlay, { once: true });
-video.addEventListener('loadeddata', tryPlay, { once: true });
+window.addEventListener('click', tryPlay);
+window.addEventListener('keydown', tryPlay);
+window.addEventListener('pointerdown', tryPlay);
+
+// insista in primele ~10s pana prinde redarea (si dezmuteaza daca a pornit mut din reguli de autoplay)
+let _pt = 0;
+const _pi = setInterval(() => {
+    if (video.paused) { tryPlay(); }
+    else if (!muted && (video.muted || video.volume === 0) && targetVol() > 0) { applyAudio(); }
+    if (++_pt > 50) clearInterval(_pi);
+}, 200);
 
 muteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
