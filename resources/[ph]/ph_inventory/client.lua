@@ -101,18 +101,45 @@ end)
 -- ----------------------------------------------------------
 --  Echipament pe ped
 -- ----------------------------------------------------------
+local baseComp = {}     -- [gtaComponentId] = { d = drawable, t = texture }  -- aspectul "fara haine de inventar"
+local baseModel = nil
+
+--- capteaza aspectul curent al componentelor gestionate ca reper de "dezechipat".
+--- corect doar cand ped-ul e proaspat spawnat (inainte sa aplicam haine de inventar);
+--- de asta se apeleaza din ph-core:client:playerLoaded si, ca fallback, o singura data
+--- per model la prima aplicare.
+local function captureBaseAppearance()
+    local ped = PlayerPedId()
+    if ped == 0 or not DoesEntityExist(ped) then return end
+    baseModel = GetEntityModel(ped)
+    baseComp = {}
+    for _, cfg in pairs(Config.EquipmentSlots) do
+        if cfg.kind == 'component' then
+            baseComp[cfg.id] = {
+                d = GetPedDrawableVariation(ped, cfg.id),
+                t = GetPedTextureVariation(ped, cfg.id),
+            }
+        end
+    end
+end
+
 local function applyEquipment(map)
     equipment = map or {}
     local ped = PlayerPedId()
     if not ped or ped == 0 or not DoesEntityExist(ped) then return end
+
+    -- reper de baza: capteaza daca nu il avem pentru ped-ul curent
+    if next(baseComp) == nil or baseModel ~= GetEntityModel(ped) then
+        captureBaseAppearance()
+    end
 
     for eqSlot, cfg in pairs(Config.EquipmentSlots) do
         local worn = equipment[eqSlot]
         local def = worn and Config.Items[worn.name]
 
         if cfg.kind == 'component' then
-            -- setam DOAR daca exista o haina si drawable-ul e valid pentru ped-ul curent
             if def and def.drawable then
+                -- echipat: pune drawable-ul hainei (daca e valid pentru ped-ul curent)
                 local maxDraw = GetNumberOfPedDrawableVariations(ped, cfg.id)
                 local dr = math.floor(def.drawable)
                 if dr >= 0 and dr < maxDraw then
@@ -121,9 +148,13 @@ local function applyEquipment(map)
                     if tx < 0 or tx >= maxTex then tx = 0 end
                     SetPedComponentVariation(ped, cfg.id, dr, tx, 0)
                 end
+            else
+                -- dezechipat: revino la aspectul de baza (sau 0/0 daca nu l-am putut capta)
+                local b = baseComp[cfg.id]
+                SetPedComponentVariation(ped, cfg.id, b and b.d or 0, b and b.t or 0, 0)
             end
-            -- fara reset la 0 pe dezechipare (poate crapa jocul + arata prost fara sistem de appearance)
         else
+            -- props (sapca, ochelari, ...): se sterg oricum la dezechipare
             if def and def.drawable then
                 local maxDraw = GetNumberOfPedPropDrawableVariations(ped, cfg.id)
                 local dr = math.floor(def.drawable)
@@ -143,8 +174,10 @@ RegisterNetEvent('ph_inventory:cl:applyEquipment', function(map)
     applyEquipment(map)
 end)
 
--- reaplica dupa spawn / schimbare model
+-- reaplica dupa spawn / schimbare model; forteaza re-capturarea reperului de baza
 AddEventHandler('ph-core:client:playerLoaded', function()
+    baseComp = {}
+    baseModel = nil
     SetTimeout(1500, function() applyEquipment(equipment) end)
 end)
 
