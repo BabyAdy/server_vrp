@@ -173,6 +173,7 @@ end)
 AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     TriggerServerEvent('staff_menu:sv:reqNoclip')
+    TriggerServerEvent('staff_menu:sv:reqNoclipList')
     TriggerEvent('chat:addSuggestion', '/heal', 'staff>=trialadmin: 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
     TriggerEvent('chat:addSuggestion', '/revive', 'staff>=trialadmin: reinvie cu 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
     TriggerEvent('chat:addSuggestion', '/dv', 'staff>=trialadmin: sterge vehiculul din apropiere')
@@ -181,51 +182,31 @@ AddEventHandler('onClientResourceStart', function(res)
     TriggerEvent('chat:addSuggestion', '/flip', 'staff>=generaladmin: readu vehiculul pe roti')
     TriggerEvent('chat:addSuggestion', '/maxperf', 'staff>=manager: tuneaza performanta la maxim')
     TriggerEvent('chat:addSuggestion', '/dvall', 'staff>=manager: sterge toate vehiculele neutilizate (10s)')
+    TriggerEvent('chat:addSuggestion', '/setvw', 'staff>=trialadmin: muta un jucator intr-un virtual world', {
+        { name = 'sqlId' }, { name = 'virtualWorld (0 = normal)' } })
+    TriggerEvent('chat:addSuggestion', '/doorinfo', 'staff>=developer: afiseaza model + coords ale usii din apropiere')
 end)
 AddEventHandler('ph-core:client:playerLoaded', function()
     TriggerServerEvent('staff_menu:sv:reqNoclip')
+    TriggerServerEvent('staff_menu:sv:reqNoclipList')
 end)
 
-local function myLevel()
-    local ok, ch = pcall(function() return exports['ph-core']:GetCharacter() end)
-    return (ok and type(ch) == 'table' and tonumber(ch.level)) or 1
-end
-
---- indicii din SPD deblocati de level-ul curent
-local function unlockedSpeeds()
-    local lvl = myLevel()
-    local out = {}
-    for i, s in ipairs(SPD) do
-        if lvl >= (s.minLevel or 1) then out[#out + 1] = i end
-    end
-    if #out == 0 then out[1] = 1 end
-    return out
-end
-
---- viteza curenta (clamp la ce e deblocat)
+--- viteza curenta (toate sunt disponibile - noclip e doar pentru staff)
 local function currentSpeed()
-    local un = unlockedSpeeds()
-    local ok = false
-    for _, i in ipairs(un) do if i == speedIdx then ok = true break end end
-    if not ok then speedIdx = un[#un] end          -- daca nu mai e valabila, ia cea mai mare deblocata
-    return SPD[speedIdx], un
+    if speedIdx < 1 or speedIdx > #SPD then speedIdx = 1 end
+    return SPD[speedIdx]
 end
 
 local function cycleSpeed()
-    local _, un = currentSpeed()
-    local pos = 1
-    for k, i in ipairs(un) do if i == speedIdx then pos = k break end end
-    speedIdx = un[(pos % #un) + 1]
+    speedIdx = (speedIdx % #SPD) + 1
     pushNoclipHud()
 end
 
 function pushNoclipHud()  -- luainspect: atribuit forward-declaratiei locale
-    local cur, un = currentSpeed()
-    local unlocked = {}
-    for _, i in ipairs(un) do unlocked[i] = true end
+    local cur = currentSpeed()
     local tiers = {}
     for i, s in ipairs(SPD) do
-        tiers[#tiers + 1] = { name = s.name, active = (i == speedIdx), unlocked = unlocked[i] == true }
+        tiers[#tiers + 1] = { name = s.name, active = (i == speedIdx) }
     end
     SendNUIMessage({ action = 'noclip', data = {
         on = noclip,
@@ -234,6 +215,8 @@ function pushNoclipHud()  -- luainspect: atribuit forward-declaratiei locale
         tiers = tiers,
     }})
 end
+
+local NC_SELF_ALPHA = (Config.Noclip and Config.Noclip.SelfAlpha) or 150
 
 local function setNoclip(state)
     if state and not noclipAllowed then return end
@@ -247,15 +230,19 @@ local function setNoclip(state)
     SetEntityInvincible(ped, noclip)
     FreezeEntityPosition(ent, noclip)
     SetEntityCollision(ent, not noclip, not noclip)
-    if ent == ped then
-        SetEntityVisible(ped, true, false)
-    end
-    if not noclip then
+
+    if noclip then
+        -- pentru tine: te vezi transparent ; pentru ceilalti: invizibil (vezi broadcast-ul de mai jos)
+        SetEntityAlpha(ped, NC_SELF_ALPHA, false)
+        if ent ~= ped then SetEntityAlpha(ent, NC_SELF_ALPHA, false) end
+    else
         SetEntityVelocity(ent, 0.0, 0.0, 0.0)
         FreezeEntityPosition(ent, false)
         SetEntityCollision(ent, true, true)
         SetEntityInvincible(ent, false)
         SetEntityInvincible(ped, false)
+        ResetEntityAlpha(ped)
+        if ent ~= ped then ResetEntityAlpha(ent) end
     end
 
     TriggerServerEvent('staff_menu:sv:noclip', noclip)
@@ -329,6 +316,60 @@ CreateThread(function()
     while true do
         Wait(2000)
         if noclip and not noclipAllowed then setNoclip(false) end
+    end
+end)
+
+-- ----------------------------------------------------------
+--  Ceilalti jucatori NU vad pe cel din noclip (nici ped, nici nametag).
+--  ph_nametag verifica IsEntityVisible(ped) -> nametag-ul dispare automat.
+-- ----------------------------------------------------------
+local hiddenNoclip = {}   -- [serverId] = true
+
+RegisterNetEvent('staff_menu:cl:noclipState', function(serverId, on)
+    if serverId == GetPlayerServerId(PlayerId()) then return end   -- pe tine te gestioneaza setNoclip()
+    if on then
+        hiddenNoclip[serverId] = true
+    else
+        hiddenNoclip[serverId] = nil
+        local ply = GetPlayerFromServerId(serverId)
+        if ply ~= -1 then
+            local pd = GetPlayerPed(ply)
+            if pd ~= 0 and DoesEntityExist(pd) then
+                SetEntityVisible(pd, true, false)
+                ResetEntityAlpha(pd)
+                SetEntityNoCollisionEntity(PlayerPedId(), pd, true)
+                local v = GetVehiclePedIsIn(pd, false)
+                if v ~= 0 then SetEntityVisible(v, true, false); ResetEntityAlpha(v) end
+            end
+        end
+    end
+end)
+
+CreateThread(function()
+    while true do
+        if next(hiddenNoclip) ~= nil then
+            local myPed = PlayerPedId()
+            for sid in pairs(hiddenNoclip) do
+                local ply = GetPlayerFromServerId(sid)
+                if ply ~= -1 then
+                    local pd = GetPlayerPed(ply)
+                    if pd ~= 0 and DoesEntityExist(pd) then
+                        SetEntityLocallyInvisible(pd)
+                        SetEntityVisible(pd, false, false)
+                        SetEntityNoCollisionEntity(myPed, pd, false)
+                        local v = GetVehiclePedIsIn(pd, false)
+                        if v ~= 0 then
+                            SetEntityLocallyInvisible(v)
+                            SetEntityVisible(v, false, false)
+                            SetEntityNoCollisionEntity(myPed, v, false)
+                        end
+                    end
+                end
+            end
+            Wait(0)
+        else
+            Wait(500)
+        end
     end
 end)
 
@@ -485,4 +526,50 @@ AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() and spawnedCar and DoesEntityExist(spawnedCar) then
         DeleteVehicle(spawnedCar)
     end
+end)
+
+-- ==========================================================
+--  USI INCUIATE PERMANENT  (Config.Doors) - fara UI, doar inchise
+-- ==========================================================
+local function applyLockedDoors()
+    for i, d in ipairs(Config.Doors or {}) do
+        local doorHash = GetHashKey(('ph_door_%d'):format(i))
+        local model = type(d.model) == 'string' and GetHashKey(d.model) or math.floor(d.model or 0)
+        if model ~= 0 then
+            if not IsDoorRegisteredWithSystem(doorHash) then
+                AddDoorToSystem(doorHash, model, d.x + 0.0, d.y + 0.0, d.z + 0.0, false, false, false)
+            end
+            DoorSystemSetDoorState(doorHash, 1, false, false)   -- 1 = LOCKED
+            DoorSystemSetOpenRatio(doorHash, 0.0, false, false)
+            DoorSystemSetHoldOpen(doorHash, false)
+        end
+    end
+end
+
+CreateThread(function()
+    while not NetworkIsSessionStarted() do Wait(200) end
+    Wait(1500)
+    applyLockedDoors()
+    while true do
+        Wait(Config.DoorRefreshMs or 15000)
+        applyLockedDoors()
+    end
+end)
+
+-- /doorinfo: cel mai apropiat obiect (usa) -> model + coords in consola + toast
+RegisterNetEvent('staff_menu:cl:doorinfo', function()
+    local pc = GetEntityCoords(PlayerPedId())
+    local best, bestD, bestModel
+    for _, obj in ipairs(GetGamePool('CObject')) do
+        local d = #(GetEntityCoords(obj) - pc)
+        if not bestD or d < bestD then best, bestD, bestModel = obj, d, GetEntityModel(obj) end
+    end
+    if not best or bestD > 6.0 then
+        return SendNUIMessage({ action = 'toast', text = 'Niciun obiect in raza de 6m.' })
+    end
+    local oc = GetEntityCoords(best)
+    local line = ('DOOR  model = %s   x = %.2f, y = %.2f, z = %.2f   (dist %.1fm)')
+        :format(bestModel, oc.x + 0.0, oc.y + 0.0, oc.z + 0.0, bestD)
+    print('[doorinfo] ' .. line)
+    SendNUIMessage({ action = 'toast', text = line })
 end)

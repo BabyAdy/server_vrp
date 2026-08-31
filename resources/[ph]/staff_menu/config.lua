@@ -32,15 +32,17 @@ Config.Discord = {
 --    Vitezele se deblocheaza in functie de level-ul personajului (users.level).
 -- ----------------------------------------------------------
 Config.Noclip = {
-    Key      = 'F2',
-    MinGrade = 'trialadmin',
+    Key       = 'F2',
+    MinGrade  = 'trialadmin',
+    SelfAlpha = 150,   -- cat de transparent te vezi TU cat esti in noclip (0-255); ceilalti nu te vad deloc
+    -- Noclip e strict pentru staff -> toate vitezele sunt disponibile mereu.
     -- `mps` = viteza in metri/secunda (deplasarea pe frame = mps * frametime)
     Speeds = {
-        { name = 'Slow',      label = 'Incet',            mps = 3.0,   minLevel = 1  },
-        { name = 'Normal',    label = 'Normal',           mps = 9.0,   minLevel = 1  },
-        { name = 'Fast',      label = 'Rapid',            mps = 20.0,  minLevel = 5  },
-        { name = 'Very Fast', label = 'Foarte rapid',     mps = 45.0,  minLevel = 15 },
-        { name = 'Sasuke',    label = 'MEGA ULTRA RAPID', mps = 140.0, minLevel = 30 },
+        { name = 'Slow',      label = 'Incet',            mps = 3.0   },
+        { name = 'Normal',    label = 'Normal',           mps = 9.0   },
+        { name = 'Fast',      label = 'Rapid',            mps = 20.0  },
+        { name = 'Very Fast', label = 'Foarte rapid',     mps = 45.0  },
+        { name = 'Sasuke',    label = 'MEGA ULTRA RAPID', mps = 140.0 },
     },
 }
 
@@ -83,6 +85,10 @@ Config.Perms = {
     maxperf         = 'manager',
     dvall           = 'manager',
 
+    -- utilitare
+    setvw           = 'trialadmin',   -- /setvw <sqlId> <virtualWorld>
+    doorinfo        = 'developer',    -- /doorinfo -> afiseaza model + coords ale usii din apropiere
+
     -- developer
     set_staff       = 'manager',
     restart_resource = 'developer',
@@ -92,6 +98,18 @@ Config.Perms = {
 
 -- /dvall: cat asteptam dupa anunt inainte sa stergem (secunde)
 Config.DvallDelaySec = 10
+
+-- ----------------------------------------------------------
+--  Usi inchise & incuiate permanent (fara UI, fara marker - doar inchise).
+--  `model` = numele prop-ului (string) SAU hash-ul numeric (din /doorinfo).
+--  Foloseste /doorinfo langa o usa ca sa afli model + coords.
+-- ----------------------------------------------------------
+Config.Doors = {
+    -- exemplu:
+    -- { name = 'Depozit PD',  model = 'v_ilev_ph_door01', x = 461.79,  y = -1002.9, z = 24.91 },
+    -- { name = 'Poarta X',    model = -1281601925,        x = 100.0,   y = 200.0,   z = 30.0  },
+}
+Config.DoorRefreshMs = 15000   -- re-aplica starea "incuiat" periodic
 
 -- Ce actiuni apar in tab-ul "Staff" (moderare) - filtrate dupa grad la runtime
 Config.StaffActions = {

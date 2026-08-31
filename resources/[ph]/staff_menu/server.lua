@@ -582,13 +582,26 @@ RegisterNetEvent('staff_menu:sv:reqNoclip', function()
     pushNoclip(source)
 end)
 
---- log de accountability cand un staff porneste/opreste noclip
+local noclipOn = {}   -- [src] = true  (cine e in noclip acum)
+
+--- log + broadcast: ceilalti clienti ascund jucatorul din noclip
 RegisterNetEvent('staff_menu:sv:noclip', function(on)
     local src = source
     local grade = (Config.Noclip and Config.Noclip.MinGrade) or 'trialadmin'
     if not (exports[PH_CORE]:HasStaffRank(src, grade)) then return end
+    on = on == true
+    noclipOn[src] = on or nil
     local sc = charOf(src)
-    logRaw(sc and sc.id, sc and sc.username, on == true and 'noclip_on' or 'noclip_off', nil)
+    logRaw(sc and sc.id, sc and sc.username, on and 'noclip_on' or 'noclip_off', nil)
+    TriggerClientEvent('staff_menu:cl:noclipState', -1, src, on)
+end)
+
+--- un client care intra tarziu primeste lista celor deja in noclip
+RegisterNetEvent('staff_menu:sv:reqNoclipList', function()
+    local src = source
+    for osrc in pairs(noclipOn) do
+        TriggerClientEvent('staff_menu:cl:noclipState', src, osrc, true)
+    end
 end)
 
 -- ----------------------------------------------------------
@@ -606,6 +619,11 @@ AddEventHandler('ph-core:playerLoaded', function(src, char)
 end)
 
 AddEventHandler('playerDropped', function(reason)
+    if noclipOn[source] then
+        noclipOn[source] = nil
+        TriggerClientEvent('staff_menu:cl:noclipState', -1, source, false)
+    end
+
     local rec = S2U[source]
     S2U[source] = nil
     if not rec then return end
@@ -682,6 +700,38 @@ RegisterCommand('spawncar', function(src, args)
     local model = tostring(args[1] or ''):gsub('%s', ''):lower()
     if model == '' then return notify(src, 'uz: /spawncar <model>', '#e0c07a') end
     vehCmd(src, 'spawncar', 'spawncar', model)
+end, false)
+
+-- ----------------------------------------------------------
+--  /setvw <sqlId> <virtualWorld>   (staff >= trialadmin)
+--    virtual world = routing bucket (0 = lumea normala)
+-- ----------------------------------------------------------
+RegisterCommand('setvw', function(src, args)
+    if src ~= 0 and not can(src, 'setvw') then
+        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
+    end
+    local uid = tonumber(args[1])
+    local vw  = tonumber(args[2])
+    if not uid or not vw then
+        return notify(src, 'uz: /setvw <sqlId> <virtualWorld>', '#e0c07a')
+    end
+    local tSrc = srcByUserId(uid)
+    if not tSrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+    vw = math.max(0, math.floor(vw))
+    SetPlayerRoutingBucket(tSrc, vw)
+    local sc, tc = charOf(src), charOf(tSrc)
+    logRaw(sc and sc.id, sc and sc.username, 'setvw', ('%s -> vw %d'):format(tc and tc.id or uid, vw))
+    notify(src, ('%s -> virtual world %d.'):format(tc and tc.username or ('#' .. uid), vw), '#8ce07a')
+    notify(tSrc, ('Ai fost mutat in virtual world %d de un membru al staff-ului.'):format(vw), '#e0c07a')
+end, false)
+
+-- /doorinfo -> pe clientul apelantului: afiseaza model + coords ale usii din apropiere
+RegisterCommand('doorinfo', function(src)
+    if src == 0 then return end
+    if not can(src, 'doorinfo') then
+        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
+    end
+    TriggerClientEvent('staff_menu:cl:doorinfo', src)
 end, false)
 
 RegisterCommand('dvall', function(src)

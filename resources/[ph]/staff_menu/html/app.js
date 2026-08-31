@@ -341,7 +341,7 @@ function renderNoclip(n) {
     if (lbl) lbl.textContent = n.speedLabel ? '· ' + n.speedLabel : '';
     if (tiers) {
         tiers.innerHTML = (n.tiers || []).map((t) =>
-            `<span class="t${t.active ? ' active' : ''}${t.unlocked ? '' : ' locked'}">${String(t.name).replace(/[<>&]/g, '')}</span>`
+            `<span class="t${t.active ? ' active' : ''}">${String(t.name).replace(/[<>&]/g, '')}</span>`
         ).join('');
     }
 }
