@@ -2,7 +2,7 @@
 --  ph_inventory / server
 --
 --  Model: SERVER-DRIVEN AUTHORITATIVE.
---    NUI trimite un event -> serverul valideaza si muta itemele in INV[src]
+--    NUI trimite un event -> serverul valideaza si muta itemele in INV[userId]
 --    -> serverul trimite `ph_inventory:cl:state` inapoi cu starea reala din
 --    memorie.  NUI-ul NU muta niciodata itemele local; doar deseneaza `state`.
 --
@@ -73,10 +73,35 @@ CreateThread(function()
 end)
 
 -- ----------------------------------------------------------
---  Helpers de baza
+--  Identitate: totul se cheiaza pe SQL id (users.id), nu pe session id.
+--    INV[userId], dirty[userId]
+--    U[src] = userId   -> cache local, sursa de adevar pentru maparea inversa
+--                        (nu depinde de ordinea de teardown a ph-core la disconnect)
 -- ----------------------------------------------------------
+local U = {}
+
 local function itemDef(name) return Config.Items[name] end
 local function charOf(src)   return exports[PH]:GetCharacter(src) end
+
+--- session id -> SQL id
+local function uidOf(src)
+    local u = U[src]
+    if u then return u end
+    local ok, id = pcall(function()
+        local v = exports[PH]:SourceToUserId(src)
+        if v then return v end
+        local c = exports[PH]:GetCharacter(src)
+        return c and c.id or nil
+    end)
+    if ok and id then U[src] = id; return id end
+    return nil
+end
+
+--- SQL id -> session id (nil daca jucatorul e offline)
+local function srcOf(userId)
+    local ok, s = pcall(function() return exports[PH]:GetSource(userId) end)
+    return (ok and s) or nil
+end
 
 local function notify(src, text, color)
     if GetResourceState('ph_chat') == 'started' then
@@ -226,22 +251,24 @@ local function serialize(inv)
     return json.encode({ v = 3, items = items, equipment = inv.equipment or {}, hotbar = hotbar })
 end
 
-local function writeInv(src)
-    local inv  = INV[src]
-    local char = charOf(src)
-    if not inv or not char then return end
-    dirty[src] = nil
-    MySQL.update('UPDATE users SET inventory = ? WHERE id = ?', { serialize(inv), char.id })
+--- scrie inventarul pe SQL id (users.id) - fara nevoie de session id
+local function writeInv(uid)
+    local inv = INV[uid]
+    if not uid or not inv then return end
+    dirty[uid] = nil
+    MySQL.update('UPDATE users SET inventory = ? WHERE id = ?', { serialize(inv), uid })
 end
 
-local function saveInv(src) dirty[src] = true end
+local function saveInv(uid) if uid then dirty[uid] = true end end
 
 local function loadInv(src)
     local char = charOf(src)
     if not char then return end
+    local uid = char.id
+    U[src] = uid
 
     local okQ, row = pcall(function()
-        return MySQL.single.await('SELECT inventory, inv_slots FROM users WHERE id = ?', { char.id })
+        return MySQL.single.await('SELECT inventory, inv_slots FROM users WHERE id = ?', { uid })
     end)
     if not okQ then
         print('^1[ph_inventory] SELECT users.inventory a esuat:^7 ' .. tostring(row))
@@ -316,8 +343,8 @@ local function loadInv(src)
     for _, e in pairs(items) do ensureWeaponMeta(e) end
     for i = 1, Config.HotbarSlots do ensureWeaponMeta(hotbar[i]) end
 
-    INV[src] = { slots = slots, items = items, equipment = equipment, hotbar = hotbar }
-    sanitizeHotbar(INV[src])
+    INV[uid] = { slots = slots, items = items, equipment = equipment, hotbar = hotbar }
+    sanitizeHotbar(INV[uid])
 end
 
 -- forward-declaratii (folosite inainte de definitia din sectiunea "Drop-uri")
@@ -327,7 +354,7 @@ local createDrop, dropPreview
 --  Push catre client
 -- ----------------------------------------------------------
 local function pushConfig(src)
-    local inv = INV[src]
+    local inv = INV[uidOf(src)]
     TriggerClientEvent('ph_inventory:cl:config', src, {
         slots            = inv and inv.slots or Config.DefaultSlots,
         maxWeight        = Config.MaxWeight,
@@ -344,7 +371,7 @@ local function pushConfig(src)
 end
 
 local function pushState(src)
-    local inv = INV[src]
+    local inv = INV[uidOf(src)]
     if not inv then return end
     sanitizeHotbar(inv)
 
@@ -368,7 +395,7 @@ local function pushState(src)
 end
 
 local function applyPedEquipment(src)
-    local inv = INV[src]
+    local inv = INV[uidOf(src)]
     if not inv then return end
     TriggerClientEvent('ph_inventory:cl:applyEquipment', src, inv.equipment)
 end
@@ -376,8 +403,8 @@ end
 -- ----------------------------------------------------------
 --  Operatii de baza (add / count / remove)  -- exports & drop
 -- ----------------------------------------------------------
-local function addItem(src, name, count, meta)
-    local inv = INV[src]
+local function addItem(uid, name, count, meta)
+    local inv = INV[uid]
     local d   = itemDef(name)
     count = toInt(count) or 0
     if not inv or not d or count <= 0 then return false end
@@ -412,8 +439,8 @@ local function addItem(src, name, count, meta)
     return true
 end
 
-local function countItem(src, name)
-    local inv = INV[src]
+local function countItem(uid, name)
+    local inv = INV[uid]
     if not inv then return 0 end
     local n = 0
     for _, e in pairs(inv.items) do
@@ -426,11 +453,11 @@ local function countItem(src, name)
     return n
 end
 
-local function removeItem(src, name, count)
-    local inv = INV[src]
+local function removeItem(uid, name, count)
+    local inv = INV[uid]
     if not inv then return false end
     count = toInt(count) or 0
-    if count <= 0 or countItem(src, name) < count then return false end
+    if count <= 0 or countItem(uid, name) < count then return false end
     for s, e in pairs(inv.items) do
         if e.name == name then
             local take = math.min(e.count, count)
@@ -593,7 +620,8 @@ end
 
 RegisterNetEvent('ph_inventory:sv:move', function(from, to, count)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     from  = toInt(from)
@@ -611,7 +639,7 @@ RegisterNetEvent('ph_inventory:sv:move', function(from, to, count)
         changed = false
     end
 
-    if changed then saveInv(src) end
+    if changed then saveInv(uid) end
     pushState(src)
 end)
 
@@ -620,7 +648,8 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     ammoSlot   = toInt(ammoSlot)
@@ -655,7 +684,7 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     if isHotbarSlot(weaponSlot) then
         TriggerClientEvent('ph_inventory:cl:weaponMeta', src, weaponSlot, wpn.meta.ammo, wpn.meta.durability)
     end
-    saveInv(src); pushState(src)
+    saveInv(uid); pushState(src)
 end)
 
 -- ----------------------------------------------------------
@@ -663,7 +692,8 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:applyAttachment', function(attachSlot, weaponSlot)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     attachSlot = toInt(attachSlot)
@@ -702,7 +732,7 @@ RegisterNetEvent('ph_inventory:sv:applyAttachment', function(attachSlot, weaponS
 
     notify(src, ('Montat: %s'):format(acfg.label or key), '#8ce07a')
     TriggerClientEvent('ph_inventory:cl:weaponMods', src, weaponSlot, wpn.meta.attachments)
-    saveInv(src); pushState(src)
+    saveInv(uid); pushState(src)
 end)
 
 -- ----------------------------------------------------------
@@ -710,7 +740,8 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     slot = toInt(slot)
@@ -724,7 +755,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         e.count = e.count - 1
         if e.count <= 0 then setSlot(inv, slot, nil) end
         TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
 
     elseif op == 'split' then
         count = toInt(count) or 0
@@ -737,7 +768,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         end
         inv.items[free] = { name = e.name, count = count }
         e.count = e.count - count
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
 
     elseif op == 'drop' then
         count = toInt(count) or e.count
@@ -747,7 +778,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         e.count = e.count - count
         if e.count <= 0 then setSlot(inv, slot, nil) end
         createDrop({ x = c.x, y = c.y, z = c.z - 0.9 }, items)
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
 
     elseif op == 'rmattach' then
         if not d or d.type ~= 'weapon' or not e.meta or not e.meta.attachments then return pushState(src) end
@@ -764,7 +795,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         local acfg = Config.Attachments[removed]
         notify(src, ('Scos: %s'):format((acfg and acfg.label) or removed), '#e0c07a')
         TriggerClientEvent('ph_inventory:cl:weaponMods', src, slot, e.meta.attachments)
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
 
     else
         pushState(src)
@@ -822,7 +853,8 @@ end)
 
 RegisterNetEvent('ph_inventory:sv:pickup', function(dropId)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     local d   = DROPS[toInt(dropId)]
     if not inv or not d then return pushState(src) end
 
@@ -847,7 +879,7 @@ RegisterNetEvent('ph_inventory:sv:pickup', function(dropId)
         TriggerClientEvent('ph_inventory:cl:dropAdd', -1, d.id, d.coords, dropPreview(leftover))
         notify(src, 'Inventar plin - o parte a ramas pe jos.', '#e0c07a')
     end
-    saveInv(src); pushState(src)
+    saveInv(uid); pushState(src)
 end)
 
 -- ----------------------------------------------------------
@@ -855,7 +887,8 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:equip', function(slot, eqSlot)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
     slot   = toInt(slot)
     eqSlot = toInt(eqSlot)
@@ -869,13 +902,14 @@ RegisterNetEvent('ph_inventory:sv:equip', function(slot, eqSlot)
     end
     if not isClothingSlot(eqSlot) then return pushState(src) end
 
-    if doClothingMove(src, inv, slot, eqSlot) then saveInv(src) end
+    if doClothingMove(src, inv, slot, eqSlot) then saveInv(uid) end
     pushState(src)
 end)
 
 RegisterNetEvent('ph_inventory:sv:unequip', function(eqSlot)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     local num = toInt(eqSlot)
@@ -887,7 +921,7 @@ RegisterNetEvent('ph_inventory:sv:unequip', function(eqSlot)
         notify(src, 'Nu ai slot liber.', '#e07a7a')
         return pushState(src)
     end
-    if doClothingMove(src, inv, num, free) then saveInv(src) end
+    if doClothingMove(src, inv, num, free) then saveInv(uid) end
     pushState(src)
 end)
 
@@ -896,7 +930,8 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:useHotbar', function(hotIndex)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
 
     hotIndex = toInt(hotIndex)
@@ -924,14 +959,15 @@ RegisterNetEvent('ph_inventory:sv:useHotbar', function(hotIndex)
         e.count = e.count - 1
         if e.count <= 0 then inv.hotbar[hotIndex] = nil end
         TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
     end
 end)
 
 --- clientul sincronizeaza gloante + durabilitate dupa tras
 RegisterNetEvent('ph_inventory:sv:weaponSync', function(slot, ammo, durability)
     local src = source
-    local inv = INV[src]
+    local uid = uidOf(src)
+    local inv = INV[uid]
     if not inv then return end
     slot = toInt(slot)
     if not validRealSlot(inv, slot) then return end
@@ -949,11 +985,11 @@ RegisterNetEvent('ph_inventory:sv:weaponSync', function(slot, ammo, durability)
         setSlot(inv, slot, nil)
         notify(src, 'Arma s-a spart si a fost distrusa.', '#e07a7a')
         TriggerClientEvent('ph_inventory:cl:weaponBroke', src, slot)
-        saveInv(src); pushState(src)
+        saveInv(uid); pushState(src)
         return
     end
 
-    saveInv(src)
+    saveInv(uid)
 end)
 
 -- ----------------------------------------------------------
@@ -961,7 +997,7 @@ end)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:request', function()
     local src = source
-    if not INV[src] then loadInv(src) end
+    if not INV[uidOf(src)] then loadInv(src) end
     pushConfig(src)
     pushState(src)
 end)
@@ -971,12 +1007,12 @@ end)
 -- ----------------------------------------------------------
 AddEventHandler('ph-core:playerLoaded', function(src)
     if not ready then
-        SetTimeout(3000, function() if INV[src] == nil then loadInv(src) end end)
+        SetTimeout(3000, function() if INV[uidOf(src)] == nil then loadInv(src) end end)
     else
         loadInv(src)
     end
     SetTimeout(1500, function()
-        if INV[src] then
+        if INV[uidOf(src)] then
             pushState(src)
             applyPedEquipment(src)
         end
@@ -985,85 +1021,115 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    if INV[src] then writeInv(src) end
-    INV[src]   = nil
-    dirty[src] = nil
+    local uid = U[src] or uidOf(src)      -- U e sursa de adevar; nu depinde de teardown-ul ph-core
+    if uid then
+        if INV[uid] then writeInv(uid) end
+        INV[uid]   = nil
+        dirty[uid] = nil
+    end
+    U[src] = nil
 end)
 
 CreateThread(function()
     while true do
         Wait(15000)
-        for src in pairs(dirty) do
-            if INV[src] then writeInv(src) end
+        for uid in pairs(dirty) do
+            if INV[uid] then writeInv(uid) end
         end
     end
 end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
-    for src in pairs(INV) do writeInv(src) end
+    for uid in pairs(INV) do writeInv(uid) end
 end)
 
 -- ----------------------------------------------------------
 --  Comenzi
 -- ----------------------------------------------------------
+--  Argumentul <sqlId> este `users.id`, NU server id-ul de sesiune.
 RegisterCommand('giveitem', function(src, args)
     if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
-    local target = toInt(args[1])
-    local name   = args[2]
-    local count  = toInt(args[3]) or 1
-    if not target or not name or not Config.Items[name] then
-        print('uz: giveitem <playerId> <item> [count]')
+    local targetUid = toInt(args[1])
+    local name      = args[2]
+    local count     = toInt(args[3]) or 1
+    if not targetUid or not name or not Config.Items[name] then
+        print('uz: giveitem <sqlId> <item> [count]')
         return
     end
-    if addItem(target, name, count) then
-        saveInv(target); pushState(target)
-        notify(target, ('Ai primit %dx %s'):format(count, Config.Items[name].label), '#8ce07a')
+    if not INV[targetUid] then
+        print(('giveitem: user %s nu are inventarul incarcat (offline?).'):format(targetUid))
+        return
+    end
+    if addItem(targetUid, name, count) then
+        saveInv(targetUid)
+        local tsrc = srcOf(targetUid)
+        if tsrc then
+            pushState(tsrc)
+            notify(tsrc, ('Ai primit %dx %s'):format(count, Config.Items[name].label), '#8ce07a')
+        end
+        print(('giveitem: %dx %s -> user %s'):format(count, name, targetUid))
     end
 end, false)
 
+--  Merge si pe jucatori offline (scrie in DB; se aplica la urmatoarea conectare).
 RegisterCommand('setslots', function(src, args)
     if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
-    local target = toInt(args[1])
-    local n      = toInt(args[2])
-    if not target or not n then print('uz: setslots <playerId> <nrSloturi>') return end
+    local targetUid = toInt(args[1])
+    local n         = toInt(args[2])
+    if not targetUid or not n then print('uz: setslots <sqlId> <nrSloturi>') return end
     n = math.max(Config.DefaultSlots, math.min(Config.MaxSlots, n))
-    local char = charOf(target)
-    if not char then print('jucator neincarcat') return end
-    MySQL.update.await('UPDATE users SET inv_slots = ? WHERE id = ?', { n, char.id })
-    if INV[target] then
-        INV[target].slots = n
-        sanitizeHotbar(INV[target])
-        pushState(target)
+
+    local aff = MySQL.update.await('UPDATE users SET inv_slots = ? WHERE id = ?', { n, targetUid })
+    if not aff or aff == 0 then
+        print(('setslots: nu exista niciun user cu id %s'):format(targetUid))
+        return
     end
-    print(('sloturi pentru %d setate la %d'):format(target, n))
+    if INV[targetUid] then
+        INV[targetUid].slots = n
+        sanitizeHotbar(INV[targetUid])
+        local tsrc = srcOf(targetUid)
+        if tsrc then pushState(tsrc) end
+    end
+    print(('sloturi pentru user %s setate la %d'):format(targetUid, n))
 end, false)
 
 -- ----------------------------------------------------------
---  Exports
+--  Exports  (toate primesc SQL id = users.id)
 -- ----------------------------------------------------------
-exports('GiveItem', function(src, name, count, meta)
-    if not INV[src] then return false end
-    local ok = addItem(src, name, count or 1, meta)
-    if ok then saveInv(src); pushState(src) end
+exports('GiveItem', function(userId, name, count, meta)
+    if not INV[userId] then return false end
+    local ok = addItem(userId, name, count or 1, meta)
+    if ok then
+        saveInv(userId)
+        local s = srcOf(userId); if s then pushState(s) end
+    end
     return ok
 end)
 
-exports('RemoveItem', function(src, name, count)
-    if not INV[src] then return false end
-    local ok = removeItem(src, name, count or 1)
-    if ok then saveInv(src); pushState(src) end
+exports('RemoveItem', function(userId, name, count)
+    if not INV[userId] then return false end
+    local ok = removeItem(userId, name, count or 1)
+    if ok then
+        saveInv(userId)
+        local s = srcOf(userId); if s then pushState(s) end
+    end
     return ok
 end)
 
-exports('HasItem', function(src, name, count)
-    return countItem(src, name) >= (count or 1)
+exports('HasItem', function(userId, name, count)
+    return countItem(userId, name) >= (count or 1)
 end)
 
-exports('GetItemCount', function(src, name)
-    return countItem(src, name)
+exports('GetItemCount', function(userId, name)
+    return countItem(userId, name)
 end)
 
-exports('GetInventory', function(src)
-    return INV[src]
+exports('GetInventory', function(userId)
+    return INV[userId]
+end)
+
+--- helper pentru alte resurse: SQL id -> inventarul live (sau nil)
+exports('GetInventoryByUserId', function(userId)
+    return INV[userId]
 end)

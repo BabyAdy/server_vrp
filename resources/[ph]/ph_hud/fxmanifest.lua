@@ -7,6 +7,8 @@ author 'Purple Havoc'
 description 'Purple Havoc - HUD (identitate, bani, ceas, status, nevoi)'
 version '0.1.0'
 
+dependency 'ph-core'
+
 shared_script 'config.lua'
 client_script 'client.lua'
 server_script 'server.lua'

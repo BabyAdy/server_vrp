@@ -1,6 +1,22 @@
 PH = PH or {}
 PH.DB = PH.DB or { ready = false }
 
+local USER_SESSION_SQL = [[
+CREATE TABLE IF NOT EXISTS `user_session` (
+  `user_id`    INT UNSIGNED NOT NULL,
+  `session_id` INT          NOT NULL DEFAULT 0,
+  `license`    VARCHAR(64)  NOT NULL DEFAULT '',
+  `username`   VARCHAR(24)  NOT NULL DEFAULT '',
+  `online`     TINYINT(1)   NOT NULL DEFAULT 0,
+  `last_seen`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_user_session_sid`    (`session_id`),
+  KEY `idx_user_session_online` (`online`),
+  CONSTRAINT `fk_user_session_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+]]
+
 local USERS_SQL = [[
 CREATE TABLE IF NOT EXISTS `users` (
   `id`            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
@@ -36,6 +52,9 @@ CreateThread(function()
 
     local ok, err = pcall(function()
         MySQL.query.await(USERS_SQL)
+        MySQL.query.await(USER_SESSION_SQL)
+        -- la un start curat nu exista sesiuni active
+        MySQL.query.await('UPDATE user_session SET online = 0, session_id = 0 WHERE online = 1')
 
         -- migratii lejere pentru baze existente
         local hasStaff = MySQL.scalar.await([[

@@ -122,13 +122,13 @@ function filterPlayers() {
             <span class="meta">src ${esc(p.src)} · ${esc(p.ping)}ms</span>
           </div>
           <div class="acts">
-            <button class="mini go" data-sel="${p.src}">Select</button>
+            <button class="mini go" data-sel="${p.id}">Select</button>
           </div>
         </div>`).join('') || '<div class="card">Niciun jucator.</div>';
 
     $('players-list').querySelectorAll('[data-sel]').forEach((b) => {
         b.onclick = () => {
-            const p = STATE.players.find((x) => String(x.src) === b.dataset.sel);
+            const p = STATE.players.find((x) => String(x.id) === b.dataset.sel);
             if (!p) return;
             STATE.selected = p;
             updateTargetBar();
@@ -213,7 +213,7 @@ function onAction(a) {
 
 function sendAction(action, extra) {
     const payload = { action, ...extra };
-    if (STATE.selected) payload.targetSrc = STATE.selected.src;
+    if (STATE.selected) payload.targetId = STATE.selected.id;   // SQL id (users.id)
     post('action', payload);
 }
 
@@ -259,7 +259,7 @@ $('m-ok').onclick = () => {
 
 /* ------------------------------------------------ developer */
 $('dev-staff-go').onclick = () =>
-    post('dev', { op: 'set_staff', targetSrc: Number($('dev-staff-src').value), grade: $('dev-staff-grade').value });
+    post('dev', { op: 'set_staff', targetId: Number($('dev-staff-src').value), grade: $('dev-staff-grade').value });
 $('dev-res-go').onclick = () => post('dev', { op: 'restart_resource', name: $('dev-res').value.trim() });
 $('dev-tp-go').onclick = () =>
     post('dev', { op: 'tp_coords', x: Number($('dev-x').value), y: Number($('dev-y').value), z: Number($('dev-z').value) });

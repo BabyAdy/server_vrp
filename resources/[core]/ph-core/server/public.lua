@@ -126,14 +126,16 @@ end)
 -- ----------------------------------------------------------
 --  Comanda de test / administrare de baza
 -- ----------------------------------------------------------
+--  Argumentul <sqlId> este `users.id`, NU server id-ul de sesiune.
+--  Merge si pe jucatori offline (scrie direct in DB).
 RegisterCommand('setstaff', function(src, args)
     if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
 
-    local target = tonumber(args[1])
-    local grade = args[2] or ''
+    local userId = tonumber(args[1])
+    local grade  = args[2] or ''
 
-    if not target then
-        print('uz: setstaff <playerId> <grade|nimic pentru a scoate>')
+    if not userId then
+        print('uz: setstaff <sqlId> <grade|nimic pentru a scoate>')
         return
     end
     if grade ~= '' and not Config.StaffGrades[grade] then
@@ -142,16 +144,23 @@ RegisterCommand('setstaff', function(src, args)
         print('grade invalid. valide: ' .. table.concat(keys, ', '))
         return
     end
-    if not PH.Players[target] or not PH.Players[target].character then
-        print('jucatorul ' .. target .. ' nu este incarcat.')
+
+    local tsrc = PH.Session.SourceOf(userId)
+    if tsrc and PH.Players[tsrc] and PH.Players[tsrc].character then
+        PH.Players[tsrc].character.staff = grade
+        MySQL.update.await('UPDATE users SET staff = ? WHERE id = ?', { grade, userId })
+        PH.PushPublic(tsrc)
+        print(('staff pentru user %d (%s) setat la %q'):format(
+            userId, PH.Players[tsrc].character.username, grade))
         return
     end
 
-    PH.Players[target].character.staff = grade
-    MySQL.update.await('UPDATE users SET staff = ? WHERE id = ?',
-        { grade, PH.Players[target].character.id })
-    PH.PushPublic(target)
-    print(('staff pentru %d setat la %q'):format(target, grade))
+    local aff = MySQL.update.await('UPDATE users SET staff = ? WHERE id = ?', { grade, userId })
+    if aff and aff > 0 then
+        print(('staff pentru user %d (offline) setat la %q'):format(userId, grade))
+    else
+        print(('nu exista niciun user cu id %d'):format(userId))
+    end
 end, false)
 
 -- ----------------------------------------------------------

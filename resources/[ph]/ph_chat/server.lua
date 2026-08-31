@@ -45,11 +45,16 @@ local function colorFor(key)
     return PALETTE[(sum % #PALETTE) + 1]
 end
 
+--- session id -> SQL id (users.id) prin ph-core
 local function sqlId(src)
-    local ok, char = pcall(function()
+    local ok, id = pcall(function()
+        return exports['ph-core']:GetUserId(src)
+    end)
+    if ok and id then return id end
+    local ok2, char = pcall(function()
         return exports['ph-core']:GetCharacter(src)
     end)
-    if ok and type(char) == 'table' then return char.id end
+    if ok2 and type(char) == 'table' then return char.id end
     return nil
 end
 
@@ -77,7 +82,7 @@ RegisterNetEvent('ph_chat:submit', function(raw)
     TriggerClientEvent('ph_chat:receive', -1, {
         stamp = roStamp(),
         prefix = prefix,
-        prefixColor = colorFor(id or src),
+        prefixColor = colorFor(id or 0),
         text = msg,
         textColor = '#e8e6f0',
     })

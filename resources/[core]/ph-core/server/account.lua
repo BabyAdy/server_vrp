@@ -70,6 +70,7 @@ RegisterNetEvent('ph-core:auth:requestState', function()
 
     -- restart de resursa in timpul jocului: retrimite personajul deja incarcat
     if PH.Players[src] and PH.Players[src].character then
+        PH.Session.Sync(src)
         TriggerClientEvent('ph-core:character:spawn', src, PH.Players[src].character)
         return
     end
@@ -143,6 +144,7 @@ RegisterNetEvent('ph-core:auth:register', function(data)
     end
 
     PH.Players[src] = { userId = id, username = username }
+    PH.Session.Bind(src, id, license, username)
     PH.Log(('Cont creat: %s (id %d) [src %d]'):format(username, id, src))
 
     TriggerClientEvent('ph-core:auth:result', src, {
@@ -175,6 +177,7 @@ RegisterNetEvent('ph-core:auth:login', function(data)
 
     MySQL.update.await('UPDATE users SET last_login = NOW() WHERE id = ?', { user.id })
     PH.Players[src] = { userId = user.id, username = user.username }
+    PH.Session.Bind(src, user.id, getLicense(src), user.username)
     PH.Log(('Autentificat: %s (id %d) [src %d]'):format(user.username, user.id, src))
 
     if user.dob == nil or user.dob == false or tostring(user.dob) == '' then
@@ -198,11 +201,13 @@ end)
 AddEventHandler('playerDropped', function()
     local src = source
     local player = PH.Players[src]
-    if not player then return end
 
-    if player.character then
+    if player and player.character then
         PH.Character.Save(src)
     end
+    PH.Session.Unbind(src)
     PH.Players[src] = nil
-    PH.Log(('Jucator deconectat [src %d]'):format(src))
+    if player then
+        PH.Log(('Jucator deconectat [src %d] user %s'):format(src, player.userId or '?'))
+    end
 end)

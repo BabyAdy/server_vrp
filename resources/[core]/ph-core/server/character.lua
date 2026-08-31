@@ -51,6 +51,7 @@ function PH.Character.Load(src, row)
     }
 
     MySQL.update.await('UPDATE users SET last_login = NOW() WHERE id = ?', { row.id })
+    PH.Session.Bind(src, row.id, (PH.GetLicense and PH.GetLicense(src)) or '', row.username)
     PH.Log(('Personaj incarcat: %s (id %d) [src %d]'):format(row.username, row.id, src))
 
     TriggerClientEvent('ph-core:character:spawn', src, player.character)

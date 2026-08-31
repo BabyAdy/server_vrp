@@ -18,6 +18,7 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/crypto.js',
     'server/database.lua',
+    'server/session.lua',
     'server/account.lua',
     'server/character.lua',
     'server/public.lua',

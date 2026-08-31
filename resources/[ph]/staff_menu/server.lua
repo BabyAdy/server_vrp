@@ -5,7 +5,8 @@ local PH_CORE = 'ph-core'
 local ready = false
 local startTime = os.time()
 
-local frozen = {}      -- [src] = bool
+local frozen = {}      -- [userId] = bool  (SQL id, nu session id)
+local S2U    = {}      -- [src] = userId  (cache pentru curatenie la disconnect)
 local banCache = {}    -- [license] = { id, reason, expires_at }
 
 -- ----------------------------------------------------------
@@ -153,11 +154,10 @@ local function notifyStaff(text, color, minKey)
     end
 end
 
-local function srcByUserId(uid)
-    for psrc, e in pairs(publics()) do
-        if e.id == uid then return tonumber(psrc) end
-    end
-    return nil
+--- SQL id (users.id) -> session id (server id) prin maparea ph-core; nil daca e offline
+local function srcByUserId(userId)
+    if not userId then return nil end
+    return exports[PH_CORE]:GetSource(tonumber(userId))
 end
 
 local function logAction(staffSrc, action, tName, tId, detail)
@@ -369,10 +369,11 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         return TriggerClientEvent('staff_menu:cl:result', src, { ok = true, msg = 'Unban aplicat.' })
     end
 
-    -- actiuni cu tinta online
-    local tSrc = tonumber(p.targetSrc)
+    -- actiuni cu tinta online (identificata prin SQL id = users.id)
+    local tId   = tonumber(p.targetId)
+    local tSrc  = srcByUserId(tId)
     local tChar = tSrc and charOf(tSrc) or nil
-    if not tSrc or not tChar then
+    if not tId or not tSrc or not tChar then
         return notify(src, 'Jucatorul nu este online.', '#e07a7a')
     end
     if tSrc ~= src and rankIdx(tSrc) > 0 and rankIdx(tSrc) >= rankIdx(src) then
@@ -394,9 +395,9 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         TriggerClientEvent('staff_menu:cl:spectate', src, tSrc)
 
     elseif action == 'freeze' then
-        frozen[tSrc] = not frozen[tSrc]
-        TriggerClientEvent('staff_menu:cl:freeze', tSrc, frozen[tSrc] == true)
-        notify(src, ('%s a fost %s.'):format(tChar.username, frozen[tSrc] and 'inghetat' or 'dezghetat'), '#8ce07a')
+        frozen[tId] = not frozen[tId]
+        TriggerClientEvent('staff_menu:cl:freeze', tSrc, frozen[tId] == true)
+        notify(src, ('%s a fost %s.'):format(tChar.username, frozen[tId] and 'inghetat' or 'dezghetat'), '#8ce07a')
 
     elseif action == 'revive' then
         TriggerClientEvent('staff_menu:cl:revive', tSrc)
@@ -455,8 +456,9 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
 
     if p.op == 'set_staff' then
         if not can(src, 'set_staff') then return end
-        local tSrc = tonumber(p.targetSrc)
+        local tId   = tonumber(p.targetId)
         local grade = tostring(p.grade or '')
+        local tSrc  = srcByUserId(tId)
         local tChar = tSrc and charOf(tSrc)
         if not tChar then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
 
@@ -499,6 +501,12 @@ end)
 -- ----------------------------------------------------------
 --  Curatenie
 -- ----------------------------------------------------------
+AddEventHandler('ph-core:playerLoaded', function(src, char)
+    if char and char.id then S2U[src] = char.id end
+end)
+
 AddEventHandler('playerDropped', function()
-    frozen[source] = nil
+    local uid = S2U[source]
+    S2U[source] = nil
+    if uid then frozen[uid] = nil end
 end)

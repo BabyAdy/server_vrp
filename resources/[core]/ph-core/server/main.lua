@@ -67,9 +67,11 @@ exports('GetCharacter', function(src)
     return p and p.character or nil
 end)
 
+--- src (session id) -> sql id (users.id).  Sursa: PH.Players, apoi maparea de sesiune.
 exports('GetUserId', function(src)
     local p = PH.Players[src]
-    return p and p.userId or nil
+    if p and p.userId then return p.userId end
+    return PH.Session and PH.Session.IdOf(src) or nil
 end)
 
 exports('IsPlayerLoaded', function(src)

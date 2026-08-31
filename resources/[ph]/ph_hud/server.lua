@@ -75,12 +75,20 @@ end)
 
 -- ----------------------------------------------------------
 --  Export server: seteaza / sterge un status pentru un jucator
---  exports['ph_hud']:setStatus(src, 'rent', 'RENTED VEHICLE', { durationSec = 3300 })
+--  Primul argument este SQL id (users.id), NU server id-ul de sesiune.
+--  exports['ph_hud']:setStatus(userId, 'rent', 'RENTED VEHICLE', { durationSec = 3300 })
 -- ----------------------------------------------------------
-exports('setStatus', function(src, id, label, opts)
-    TriggerClientEvent('ph_hud:status', src, 'add', id, label, opts)
+local function srcOf(userId)
+    local ok, s = pcall(function() return exports['ph-core']:GetSource(userId) end)
+    return (ok and s) or nil
+end
+
+exports('setStatus', function(userId, id, label, opts)
+    local src = srcOf(userId)
+    if src then TriggerClientEvent('ph_hud:status', src, 'add', id, label, opts) end
 end)
 
-exports('clearStatus', function(src, id)
-    TriggerClientEvent('ph_hud:status', src, 'remove', id)
+exports('clearStatus', function(userId, id)
+    local src = srcOf(userId)
+    if src then TriggerClientEvent('ph_hud:status', src, 'remove', id) end
 end)
