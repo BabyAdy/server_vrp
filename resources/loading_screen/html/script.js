@@ -12,7 +12,7 @@ const CFG = {
         ['Manager', 'BabyAdy'],
     ],
     credit: 'Developed by: BabyAdy',
-    musicVolume: 0.35, // 0.0 - 1.0
+    introVolume: 0.35, // 0.0 - 1.0  (volumul implicit al clipului introv2.mp4)
 };
 /* ────────────────────────────────────────────────────── */
 
@@ -31,21 +31,20 @@ try {
     ).join('');
 } catch (e) { /* ignore */ }
 
-/* ── audio (mute toggle + volume level) ──────────────── */
-const music = $('#bgMusic');
+/* ── intro clip audio (mute toggle + volume level) ────────
+   Sunetul vine DIRECT din introv2.mp4 (nu mai exista .mp3 separat,
+   care se desincroniza). Butonul + slider-ul regleaza volumul clipului. */
 const video = $('#bgVideo');
 const muteBtn = $('#muteBtn');
 const audioCtl = $('#audioCtl');
 const volSlider = $('#volSlider');
 
-// background video is always silent
-video.muted = true;
-video.defaultMuted = true;
-video.volume = 0;
 video.removeAttribute('controls');
+video.loop = true;
+video.playsInline = true;
 
 const clamp01 = (n) => Math.max(0, Math.min(100, n));
-let vol = clamp01(Math.round((CFG.musicVolume || 0.35) * 100));
+let vol = clamp01(Math.round((CFG.introVolume || 0.35) * 100));
 let muted = false;
 try {
     const sv = localStorage.getItem('ph_ls_vol');
@@ -59,8 +58,8 @@ const ICO_OFF = 'M11 5 6 9H2v6h4l5 4V5z M23 9l-6 6 M17 9l6 6';
 
 function applyAudio() {
     const effective = muted ? 0 : vol;
-    music.volume = effective / 100;
-    music.muted = effective === 0;
+    video.volume = effective / 100;
+    video.muted = effective === 0;
 
     volSlider.value = vol;
     volSlider.style.setProperty('--fill', vol + '%');
@@ -78,14 +77,22 @@ function applyAudio() {
 applyAudio();
 
 function tryPlay() {
-    const p = music.play();
-    if (p && p.catch) p.catch(() => {});
-    const v = video.play();
-    if (v && v.catch) v.catch(() => {});
+    const p = video.play();
+    if (p && p.catch) {
+        p.catch(() => {
+            // ultima varianta: daca redarea cu sunet e blocata, ruleaza macar mut
+            const wasMuted = video.muted;
+            video.muted = true;
+            const p2 = video.play();
+            if (p2 && p2.then) p2.then(() => { if (!wasMuted && !muted) { video.muted = false; applyAudio(); } }).catch(() => {});
+        });
+    }
 }
 tryPlay();
 window.addEventListener('click', tryPlay, { once: false });
 window.addEventListener('keydown', tryPlay, { once: false });
+video.addEventListener('canplay', tryPlay, { once: true });
+video.addEventListener('loadeddata', tryPlay, { once: true });
 
 muteBtn.addEventListener('click', (e) => {
     e.stopPropagation();

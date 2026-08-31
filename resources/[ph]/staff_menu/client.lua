@@ -529,25 +529,36 @@ AddEventHandler('onResourceStop', function(res)
 end)
 
 -- ==========================================================
---  USI INCUIATE PERMANENT  (Config.Doors) - fara UI, doar inchise.
---  Se aplica pe CLIENT, deci raman incuiate in ORICE virtual world
---  (routing bucket) - sistemul de usi e local, nu tine de bucket.
+--  USI BLOCATE PERMANENT  (Config.Doors) - fara UI.
+--  Totul e pe CLIENT -> se aplica in ORICE virtual world (routing bucket),
+--  sistemul de usi e local.  Usile NU se pot deschide deloc:
+--    - door system: LOCKED + open ratio 0 (re-fortat des)
+--    - cat esti aproape: fiecare frame slam la 0 + FreezeEntityPosition pe canat
 -- ==========================================================
+local function doorHashOf(i) return GetHashKey(('ph_door_%d'):format(i)) end
+local function doorModelOf(d)
+    return (type(d.model) == 'string') and GetHashKey(d.model) or math.floor(d.model or 0)
+end
+
+--- (re)inregistreaza + incuie ferm toate usile din config
 local function applyLockedDoors()
     for i, d in ipairs(Config.Doors or {}) do
-        local doorHash = GetHashKey(('ph_door_%d'):format(i))
-        local model = type(d.model) == 'string' and GetHashKey(d.model) or math.floor(d.model or 0)
+        local model = doorModelOf(d)
         if model ~= 0 then
-            if not IsDoorRegisteredWithSystem(doorHash) then
-                AddDoorToSystem(doorHash, model, d.x + 0.0, d.y + 0.0, d.z + 0.0, false, false, false)
+            local h = doorHashOf(i)
+            if not IsDoorRegisteredWithSystem(h) then
+                AddDoorToSystem(h, model, d.x + 0.0, d.y + 0.0, d.z + 0.0, false, false, false)
             end
-            DoorSystemSetDoorState(doorHash, 1, true, true)    -- 1 = LOCKED (request + force update)
-            DoorSystemSetOpenRatio(doorHash, 0.0, true, true)
-            DoorSystemSetHoldOpen(doorHash, false)
+            DoorSystemSetDoorState(h, 1, true, true)          -- 1 = LOCKED
+            DoorSystemSetOpenRatio(h, 0.0, true, true)
+            DoorSystemSetHoldOpen(h, false)
+            DoorSystemSetAutomaticRate(h, 0.0, false, false)
+            DoorSystemSetAutomaticDistance(h, 0.0, false, false)
         end
     end
 end
 
+-- re-inregistrare periodica (dupa stream-uri mari / schimbari de bucket)
 CreateThread(function()
     while not NetworkIsSessionStarted() do Wait(200) end
     Wait(1500)
@@ -555,6 +566,32 @@ CreateThread(function()
     while true do
         Wait(Config.DoorRefreshMs or 3000)
         applyLockedDoors()
+    end
+end)
+
+-- enforcement dur cat esti aproape de o usa din lista: nu are cum sa se deschida
+CreateThread(function()
+    while true do
+        local near = false
+        if next(Config.Doors or {}) ~= nil then
+            local pc = GetEntityCoords(PlayerPedId())
+            for i, d in ipairs(Config.Doors) do
+                local dist = #(pc - vector3(d.x + 0.0, d.y + 0.0, d.z + 0.0))
+                if dist < 30.0 then
+                    near = true
+                    local h = doorHashOf(i)
+                    DoorSystemSetOpenRatio(h, 0.0, false, false)
+                    DoorSystemSetDoorState(h, 1, false, false)
+                    if dist < 4.0 then
+                        local obj = GetClosestObjectOfType(d.x + 0.0, d.y + 0.0, d.z + 0.0, 2.5, doorModelOf(d), false, false, false)
+                        if obj ~= 0 and DoesEntityExist(obj) then
+                            FreezeEntityPosition(obj, true)
+                        end
+                    end
+                end
+            end
+        end
+        Wait(near and 0 or 800)
     end
 end)
 

@@ -10,18 +10,15 @@
 </head>
 <body>
 
-<!-- background video (muted) + fallback gradient -->
+<!-- intro video (with its own audio track) + fallback gradient -->
 <div class="bg">
-    <video id="bgVideo" autoplay muted loop playsinline preload="auto">
-        <source src="intro.mp4" type="video/mp4">
+    <video id="bgVideo" autoplay loop playsinline preload="auto">
+        <source src="introv2.mp4" type="video/mp4">
     </video>
     <div class="bg-grad"></div>
     <div class="bg-vignette"></div>
     <div class="bg-grid"></div>
 </div>
-
-<!-- background music -->
-<audio id="bgMusic" src="intro_song.mp3" autoplay loop preload="auto"></audio>
 
 <div id="audioCtl">
     <button id="muteBtn" title="Mute / Unmute">
@@ -29,7 +26,7 @@
             <path id="mIco" d="M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1 0 14"/>
         </svg>
     </button>
-    <input type="range" id="volSlider" min="0" max="100" value="35" title="Volum muzică">
+    <input type="range" id="volSlider" min="0" max="100" value="35" title="Volum intro">
 </div>
 
 <main class="panel">
