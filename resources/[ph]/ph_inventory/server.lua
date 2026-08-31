@@ -6,27 +6,38 @@
 --    -> serverul trimite `ph_inventory:cl:state` inapoi cu starea reala din
 --    memorie.  NUI-ul NU muta niciodata itemele local; doar deseneaza `state`.
 --
---  Sloturi: strict numere intregi.
---    grid      = 1 .. inv.slots
---    haine     = 101 .. 111  (Config.ClothingSlots)
---    hotbar    = 1 .. Config.HotbarSlots  (pointeri catre sloturi de grid)
+--  Sloturi: strict numere intregi, fara suprapunere.
+--    grid    = 1 .. inv.slots
+--    haine   = 5001 .. 5011  (Config.ClothingSlots)
+--    hotbar  = 6001 .. 6000+HotbarSlots  -- FAST SLOTS REALE (tin itemul,
+--             deci itemul de pe hotbar NU mai apare si in grid)
 --
 --  Wire format (server -> client), imun la "array-ification" msgpack:
---    items    = { { slot=1, name=, count=, meta= }, ... }   -- LISTA, nu map
---    hotbar   = { { i=1, s=12 }, ... }                      -- LISTA
---    equipment= { hat = { name=, meta= }, ... }             -- map cu chei string
+--    items    = { { slot=1, name=, count=, meta= }, ... }        -- LISTA
+--    hotbar   = { { i=1, name=, count=, meta= }, ... }           -- LISTA
+--    equipment= { hat = { name=, meta= }, ... }                  -- map chei string
+--
+--  Arme:
+--    meta = { ammo, durability, attachments = { 'suppressor', ... }, serial }
+--    maxAmmo / maxDurability = per-arma (Config.Items[x].maxAmmo) sau implicit.
+--    La durabilitate 0 arma se sparge SI dispare (Config.Weapon.BreakAtZero).
+--    Atasamentele sunt one-time-use: se consuma la montare, raman pana la
+--    spargere sau pana sunt scoase din meniul de context (op 'rmattach').
 -- ==========================================================
 local PH = 'ph-core'
 local ready = false
 math.randomseed(os.time())
 
-local INV     = {}   -- [src] = { slots, items = { [slot]={name,count,meta} }, equipment = {}, hotbar = {} }
-local DROPS   = {}   -- [dropId] = { id, coords, items = { {name,count,meta}, ... }, expires }
+local INV     = {}
+local DROPS   = {}
 local dropSeq = 0
-local dirty   = {}   -- [src] = true   (scriere debounce)
+local dirty   = {}
+
+local HOTBAR_MIN = Config.HotbarBase
+local HOTBAR_MAX = Config.HotbarBase + Config.HotbarSlots - 1
 
 -- ----------------------------------------------------------
---  DB init / migratie  (o singura interogare in loc de 3)
+--  DB init / migratie
 -- ----------------------------------------------------------
 CreateThread(function()
     while GetResourceState('oxmysql') ~= 'started' do Wait(200) end
@@ -41,7 +52,6 @@ CreateThread(function()
     end)
 
     if not ok then
-        -- fallback pentru MySQL vechi fara "ADD COLUMN IF NOT EXISTS"
         local ok2, err = pcall(function()
             local has = MySQL.scalar.await([[
                 SELECT COUNT(*) FROM information_schema.columns
@@ -63,7 +73,7 @@ CreateThread(function()
 end)
 
 -- ----------------------------------------------------------
---  Helpers
+--  Helpers de baza
 -- ----------------------------------------------------------
 local function itemDef(name) return Config.Items[name] end
 local function charOf(src)   return exports[PH]:GetCharacter(src) end
@@ -80,36 +90,98 @@ end
 local function toInt(v)
     local n = tonumber(v)
     if not n then return nil end
-    n = math.floor(n)
-    return n
+    return math.floor(n)
 end
 
---- slot valid de grid: numar intreg in 1 .. inv.slots
+-- ---- sloturi ----
+local function hotbarIndexOf(slot)
+    if type(slot) ~= 'number' then return nil end
+    if slot >= HOTBAR_MIN and slot <= HOTBAR_MAX then return slot - HOTBAR_MIN + 1 end
+    return nil
+end
+local function hotbarSlotOf(i) return HOTBAR_MIN + i - 1 end
+local function isHotbarSlot(slot) return hotbarIndexOf(slot) ~= nil end
+local function isClothingSlot(n)  return n ~= nil and Config.ClothingSlots[n] ~= nil end
+
 local function validGrid(inv, n)
     return type(n) == 'number' and n == math.floor(n) and n >= 1 and n <= inv.slots
 end
+local function validRealSlot(inv, n)
+    return validGrid(inv, n) or isHotbarSlot(n)
+end
 
-local function isClothingSlot(n)
-    return n ~= nil and Config.ClothingSlots[n] ~= nil
+--- acces uniform la orice slot REAL (grid sau hotbar) - NU haine
+local function getSlot(inv, slot)
+    local hi = hotbarIndexOf(slot)
+    if hi then return inv.hotbar[hi] end
+    return inv.items[slot]
+end
+local function setSlot(inv, slot, entry)
+    local hi = hotbarIndexOf(slot)
+    if hi then
+        inv.hotbar[hi] = entry
+    else
+        inv.items[slot] = entry
+    end
+end
+
+--- ce accepta un slot:  hotbar = doar arme / consumabile
+local function slotAccepts(slot, name)
+    if not isHotbarSlot(slot) then return true end
+    local d = itemDef(name)
+    return d ~= nil and (d.type == 'weapon' or d.usable == true)
+end
+
+-- ---- arme ----
+local function maxAmmoOf(name)
+    local d = itemDef(name)
+    return (d and d.maxAmmo) or Config.Weapon.MaxLoadedAmmo
+end
+local function maxDurabilityOf(name)
+    local d = itemDef(name)
+    return (d and d.maxDurability) or Config.Weapon.MaxDurability
 end
 
 local function newMeta(name)
     local d = itemDef(name)
     if d and d.type == 'weapon' then
         return {
-            ammo       = 0,
-            durability = Config.Weapon.MaxDurability,
-            serial     = ('%05d'):format(math.random(0, 99999)),
+            ammo        = 0,
+            durability  = maxDurabilityOf(name),
+            attachments = {},
+            serial      = ('%05d'):format(math.random(0, 99999)),
         }
     end
     return nil
 end
 
+--- normalizeaza meta unei arme (dupa load / dupa pickup)
+local function ensureWeaponMeta(e)
+    if not e then return end
+    local d = itemDef(e.name)
+    if not d or d.type ~= 'weapon' then return end
+    e.meta = e.meta or {}
+    e.meta.attachments = e.meta.attachments or {}
+    if e.meta.ammo == nil then e.meta.ammo = 0 end
+    if e.meta.durability == nil then e.meta.durability = maxDurabilityOf(e.name) end
+    if not e.meta.serial then e.meta.serial = ('%05d'):format(math.random(0, 99999)) end
+end
+
+-- ----------------------------------------------------------
+--  Greutate / sloturi libere
+-- ----------------------------------------------------------
 local function weightOf(inv)
     local w = 0.0
     for _, e in pairs(inv.items) do
         local d = itemDef(e.name)
         w = w + (d and d.weight or 0) * (e.count or 1)
+    end
+    for i = 1, Config.HotbarSlots do
+        local e = inv.hotbar[i]
+        if e then
+            local d = itemDef(e.name)
+            w = w + (d and d.weight or 0) * (e.count or 1)
+        end
     end
     return w
 end
@@ -121,40 +193,19 @@ local function firstFreeSlot(inv)
     return nil
 end
 
---- curata pointerii de hotbar care nu mai indica spre un item valid
+--- fast slot invalid (item ne-arma / ne-consumabil ajuns cumva acolo) -> in grid
 local function sanitizeHotbar(inv)
     for i = 1, Config.HotbarSlots do
-        local s = inv.hotbar[i]
-        if s ~= nil then
-            local e = inv.items[s]
-            local d = e and itemDef(e.name)
-            if not e or not d or not (d.type == 'weapon' or d.usable) then
-                inv.hotbar[i] = nil
+        local e = inv.hotbar[i]
+        if e then
+            local d = itemDef(e.name)
+            if d and not (d.type == 'weapon' or d.usable) then
+                local free = firstFreeSlot(inv)
+                if free then
+                    inv.items[free] = e
+                    inv.hotbar[i] = nil
+                end
             end
-        end
-    end
-end
-
---- muta pointerii de hotbar cand itemul urmarit se muta / dispare de pe `from`
-local function remapHotbar(inv, from, to)
-    for i = 1, Config.HotbarSlots do
-        if inv.hotbar[i] == from then
-            if to and validGrid(inv, to) then
-                inv.hotbar[i] = to
-            else
-                inv.hotbar[i] = nil
-            end
-        end
-    end
-end
-
---- schimba intre ele pointerii de hotbar cand doua sloturi fac swap
-local function swapHotbar(inv, from, to)
-    for i = 1, Config.HotbarSlots do
-        if inv.hotbar[i] == from then
-            inv.hotbar[i] = to
-        elseif inv.hotbar[i] == to then
-            inv.hotbar[i] = from
         end
     end
 end
@@ -162,7 +213,6 @@ end
 -- ----------------------------------------------------------
 --  Persistenta
 -- ----------------------------------------------------------
---- serializare imuna la sparse array: items/hotbar ca LISTE
 local function serialize(inv)
     local items = {}
     for slot, e in pairs(inv.items) do
@@ -170,9 +220,10 @@ local function serialize(inv)
     end
     local hotbar = {}
     for i = 1, Config.HotbarSlots do
-        if inv.hotbar[i] then hotbar[#hotbar + 1] = { i = i, s = inv.hotbar[i] } end
+        local e = inv.hotbar[i]
+        if e then hotbar[#hotbar + 1] = { i = i, name = e.name, count = e.count, meta = e.meta } end
     end
-    return json.encode({ v = 2, items = items, equipment = inv.equipment or {}, hotbar = hotbar })
+    return json.encode({ v = 3, items = items, equipment = inv.equipment or {}, hotbar = hotbar })
 end
 
 local function writeInv(src)
@@ -183,10 +234,7 @@ local function writeInv(src)
     MySQL.update('UPDATE users SET inventory = ? WHERE id = ?', { serialize(inv), char.id })
 end
 
---- marcheaza pentru scriere; flush debounce (vezi thread-ul de mai jos)
-local function saveInv(src)
-    dirty[src] = true
-end
+local function saveInv(src) dirty[src] = true end
 
 local function loadInv(src)
     local char = charOf(src)
@@ -196,14 +244,15 @@ local function loadInv(src)
         return MySQL.single.await('SELECT inventory, inv_slots FROM users WHERE id = ?', { char.id })
     end)
     if not okQ then
-        print('^1[ph_inventory] SELECT users.inventory a esuat (coloane lipsa?):^7 ' .. tostring(row))
+        print('^1[ph_inventory] SELECT users.inventory a esuat:^7 ' .. tostring(row))
         row = nil
     end
 
     local slots  = (row and toInt(row.inv_slots)) or Config.DefaultSlots
-    local items  = {}
-    local hotbar = {}
-    local equipment = {}
+    if slots < Config.DefaultSlots then slots = Config.DefaultSlots end
+    if slots > Config.MaxSlots then slots = Config.MaxSlots end
+
+    local items, hotbar, equipment = {}, {}, {}
 
     if row and row.inventory and row.inventory ~= '' then
         local ok, dec = pcall(json.decode, row.inventory)
@@ -211,35 +260,44 @@ local function loadInv(src)
             equipment = type(dec.equipment) == 'table' and dec.equipment or {}
 
             local list = dec.items
-            if type(list) == 'table' and (dec.v == 2 or (list[1] and list[1].slot ~= nil)) then
-                -- format v2: lista de intrari
+            local isList = type(list) == 'table' and (dec.v ~= nil or (list[1] and list[1].slot ~= nil))
+            if isList then
                 for _, e in ipairs(list) do
                     local s = toInt(e.slot)
-                    if s then
-                        items[s] = { name = e.name, count = toInt(e.count) or 1, meta = e.meta }
-                    end
-                end
-                for _, h in ipairs(dec.hotbar or {}) do
-                    local i, s = toInt(h.i), toInt(h.s)
-                    if i and s then hotbar[i] = s end
+                    if s then items[s] = { name = e.name, count = toInt(e.count) or 1, meta = e.meta } end
                 end
             else
-                -- format legacy v1: map slot -> intrare
                 for k, v in pairs(list or {}) do
                     local s = toInt(k)
                     if s and type(v) == 'table' then
                         items[s] = { name = v.name, count = toInt(v.count) or 1, meta = v.meta }
                     end
                 end
-                for k, v in pairs(dec.hotbar or {}) do
-                    local i, s = toInt(k), toInt(v)
-                    if i and s then hotbar[i] = s end
+            end
+
+            -- hotbar: accepta v3 (entry), v2 (pointer {i,s}) si legacy map {i=ptr}
+            for k, v in pairs(dec.hotbar or {}) do
+                if type(v) == 'table' and v.i ~= nil then
+                    local i = toInt(v.i)
+                    if i and i >= 1 and i <= Config.HotbarSlots then
+                        if v.name then
+                            hotbar[i] = { name = v.name, count = toInt(v.count) or 1, meta = v.meta }
+                        elseif v.s then
+                            local p = toInt(v.s)
+                            if p and items[p] then hotbar[i] = items[p]; items[p] = nil end
+                        end
+                    end
+                else
+                    local i, p = toInt(k), toInt(v)
+                    if i and p and i >= 1 and i <= Config.HotbarSlots and items[p] and not hotbar[i] then
+                        hotbar[i] = items[p]; items[p] = nil
+                    end
                 end
             end
         end
     end
 
-    -- normalizeaza: scoate cheile invalide si aduna itemele peste capacitate
+    -- normalizeaza: cheile invalide afara, itemele peste capacitate relocate
     local overflow = {}
     for slot, e in pairs(items) do
         if type(slot) ~= 'number' or slot ~= math.floor(slot) or slot < 1 then
@@ -249,18 +307,20 @@ local function loadInv(src)
             overflow[#overflow + 1] = e
         end
     end
-    -- relocheaza itemele overflow in sloturi libere (fara sa stearga nimic)
     for _, e in ipairs(overflow) do
         local free
         for i = 1, slots do if not items[i] then free = i break end end
         if free then items[free] = e end
     end
 
+    for _, e in pairs(items) do ensureWeaponMeta(e) end
+    for i = 1, Config.HotbarSlots do ensureWeaponMeta(hotbar[i]) end
+
     INV[src] = { slots = slots, items = items, equipment = equipment, hotbar = hotbar }
     sanitizeHotbar(INV[src])
 end
 
--- forward declaratii (folosite in sv:context inainte de definirea din sectiunea "Drop-uri")
+-- forward-declaratii (folosite inainte de definitia din sectiunea "Drop-uri")
 local createDrop, dropPreview
 
 -- ----------------------------------------------------------
@@ -277,6 +337,8 @@ local function pushConfig(src)
         equipmentSlotIds = Config.EquipmentSlotIds,
         clothingSlots    = Config.ClothingSlots,
         hotbarSlots      = Config.HotbarSlots,
+        hotbarBase       = Config.HotbarBase,
+        attachments      = Config.Attachments,
         weapon           = Config.Weapon,
     })
 end
@@ -292,7 +354,8 @@ local function pushState(src)
     end
     local hotbar = {}
     for i = 1, Config.HotbarSlots do
-        if inv.hotbar[i] then hotbar[#hotbar + 1] = { i = i, s = inv.hotbar[i] } end
+        local e = inv.hotbar[i]
+        if e then hotbar[#hotbar + 1] = { i = i, name = e.name, count = e.count, meta = e.meta } end
     end
 
     TriggerClientEvent('ph_inventory:cl:state', src, {
@@ -311,7 +374,7 @@ local function applyPedEquipment(src)
 end
 
 -- ----------------------------------------------------------
---  Operatii de baza (add / count / remove)  -- folosite de exports & drop
+--  Operatii de baza (add / count / remove)  -- exports & drop
 -- ----------------------------------------------------------
 local function addItem(src, name, count, meta)
     local inv = INV[src]
@@ -324,12 +387,13 @@ local function addItem(src, name, count, meta)
         for _ = 1, count do
             local s = firstFreeSlot(inv)
             if not s then return false end
-            inv.items[s] = { name = name, count = 1, meta = meta or newMeta(name) }
+            local e = { name = name, count = 1, meta = meta or newMeta(name) }
+            ensureWeaponMeta(e)
+            inv.items[s] = e
         end
         return true
     end
 
-    -- stackabil: umple stack-urile existente, apoi sloturi noi
     for _, e in pairs(inv.items) do
         if e.name == name and not e.meta and e.count < d.stack then
             local take = math.min(d.stack - e.count, count)
@@ -355,6 +419,10 @@ local function countItem(src, name)
     for _, e in pairs(inv.items) do
         if e.name == name then n = n + e.count end
     end
+    for i = 1, Config.HotbarSlots do
+        local e = inv.hotbar[i]
+        if e and e.name == name then n = n + e.count end
+    end
     return n
 end
 
@@ -372,79 +440,87 @@ local function removeItem(src, name, count)
             if count <= 0 then break end
         end
     end
-    sanitizeHotbar(inv)
+    if count > 0 then
+        for i = 1, Config.HotbarSlots do
+            local e = inv.hotbar[i]
+            if e and e.name == name then
+                local take = math.min(e.count, count)
+                e.count = e.count - take
+                count   = count - take
+                if e.count <= 0 then inv.hotbar[i] = nil end
+                if count <= 0 then break end
+            end
+        end
+    end
     return count <= 0
 end
 
 -- ----------------------------------------------------------
---  DRAG & DROP  (nucleul - 3 cazuri, nu se pierde niciun item)
+--  DRAG & DROP  (unificat grid + hotbar; 3 cazuri; zero pierderi)
 -- ----------------------------------------------------------
---- muta un item intre doua sloturi de GRID.
---  @return changed (bool)
-local function doGridMove(inv, from, to, count)
-    local a = inv.items[from]
+local function doMove(src, inv, from, to, count)
+    local a = getSlot(inv, from)
     if not a then return false end
 
     local da = itemDef(a.name)
     local maxStack = (da and da.stack) or 1
 
-    -- cate bucati vrem sa mutam (drag & drop trimite mereu tot stack-ul)
     count = toInt(count) or a.count
-    if count < 1 then count = a.count end
-    if count > a.count then count = a.count end
+    if count < 1 or count > a.count then count = a.count end
 
-    local b = inv.items[to]
+    -- destinatia hotbar accepta doar arme / consumabile
+    if isHotbarSlot(to) and not slotAccepts(to, a.name) then
+        notify(src, 'Pe fast slot intra doar arme si consumabile.', '#e07a7a')
+        return false
+    end
 
-    -- ---- CAZ 1: slot destinatie GOL --------------------------------
+    local b = getSlot(inv, to)
+
+    -- ---- CAZ 1: destinatie GOALA ----
     if not b then
         if count >= a.count then
-            inv.items[to]   = a
-            inv.items[from] = nil
-            remapHotbar(inv, from, to)
+            setSlot(inv, to, a)
+            setSlot(inv, from, nil)
         else
-            inv.items[to] = { name = a.name, count = count, meta = nil }
+            setSlot(inv, to, { name = a.name, count = count, meta = nil })
             a.count = a.count - count
         end
         return true
     end
 
-    -- ---- CAZ 2: acelasi item, stackabil, fara meta -> STACKING -----
+    -- ---- CAZ 2: acelasi item stackabil, fara meta -> STACKING ----
     if b.name == a.name and not a.meta and not b.meta and maxStack > 1 then
         local room = maxStack - b.count
         if room <= 0 then
-            -- stack destinatie plin -> swap complet (nimic pierdut)
-            inv.items[from], inv.items[to] = b, a
-            swapHotbar(inv, from, to)
+            setSlot(inv, from, b); setSlot(inv, to, a)   -- swap (stack plin)
             return true
         end
         local moved = math.min(room, count)
         b.count = b.count + moved
         a.count = a.count - moved
-        if a.count <= 0 then
-            inv.items[from] = nil
-            remapHotbar(inv, from, nil)
-        end
+        if a.count <= 0 then setSlot(inv, from, nil) end
         return true
     end
 
-    -- ---- CAZ 3: iteme diferite (sau meta / non-stack) -> SWAP ------
-    -- swap doar la mutare de stack intreg; mutarea partiala peste un
-    -- slot ocupat de alt item se ignora (altfel s-ar pierde diferenta)
+    -- ---- CAZ 3: iteme diferite / meta / non-stack -> SWAP (doar stack intreg) ----
     if count >= a.count then
-        inv.items[from], inv.items[to] = b, a
-        swapHotbar(inv, from, to)
+        -- swap-ul aduce `b` pe `from`; daca `from` e hotbar, `b` trebuie acceptat
+        if isHotbarSlot(from) and not slotAccepts(from, b.name) then
+            notify(src, 'Nu poti muta asta pe fast slot.', '#e07a7a')
+            return false
+        end
+        setSlot(inv, from, b); setSlot(inv, to, a)
         return true
     end
     return false
 end
 
---- muta intre grid <-> slot de haine (echipare / dezechipare / swap)
---  @return changed (bool)
+--- grid <-> slot de haine (echipare / dezechipare / swap)
 local function doClothingMove(src, inv, from, to)
     local fromKey = Config.ClothingSlots[from]
     local toKey   = Config.ClothingSlots[to]
 
-    -- GRID -> HAINE  (echipare)
+    -- GRID -> HAINE
     if not fromKey and toKey then
         if not validGrid(inv, from) then return false end
         local e = inv.items[from]
@@ -458,19 +534,15 @@ local function doClothingMove(src, inv, from, to)
         local prev = inv.equipment[toKey]
         inv.equipment[toKey] = { name = e.name, meta = e.meta }
 
-        -- scoate o bucata din grid
         if (e.count or 1) > 1 then
             e.count = e.count - 1
         else
             inv.items[from] = nil
-            remapHotbar(inv, from, nil)
         end
 
-        -- pune inapoi in grid ce era echipat
         if prev then
             local dest = (not inv.items[from]) and from or firstFreeSlot(inv)
             if not dest then
-                -- fara loc: anuleaza tot, restaureaza starea initiala
                 inv.equipment[toKey] = prev
                 if inv.items[from] and inv.items[from].name == e.name and not e.meta then
                     inv.items[from].count = inv.items[from].count + 1
@@ -487,7 +559,7 @@ local function doClothingMove(src, inv, from, to)
         return true
     end
 
-    -- HAINE -> GRID  (dezechipare)
+    -- HAINE -> GRID
     if fromKey and not toKey then
         local worn = inv.equipment[fromKey]
         if not worn then return false end
@@ -516,11 +588,9 @@ local function doClothingMove(src, inv, from, to)
         return true
     end
 
-    -- HAINE -> HAINE  (fara efect util) / alt caz -> ignora
     return false
 end
 
---- muta / merge / split in grid + haine
 RegisterNetEvent('ph_inventory:sv:move', function(from, to, count)
     local src = source
     local inv = INV[src]
@@ -530,15 +600,13 @@ RegisterNetEvent('ph_inventory:sv:move', function(from, to, count)
     to    = toInt(to)
     count = toInt(count)
 
-    if not from or not to or from == to then
-        return pushState(src)   -- re-sincronizeaza NUI-ul
-    end
+    if not from or not to or from == to then return pushState(src) end
 
     local changed
     if isClothingSlot(from) or isClothingSlot(to) then
         changed = doClothingMove(src, inv, from, to)
-    elseif validGrid(inv, from) and validGrid(inv, to) then
-        changed = doGridMove(inv, from, to, count)
+    elseif validRealSlot(inv, from) and validRealSlot(inv, to) then
+        changed = doMove(src, inv, from, to, count)
     else
         changed = false
     end
@@ -547,7 +615,9 @@ RegisterNetEvent('ph_inventory:sv:move', function(from, to, count)
     pushState(src)
 end)
 
---- incarca gloante peste arma (drag ammo -> weapon)
+-- ----------------------------------------------------------
+--  Munitie -> arma
+-- ----------------------------------------------------------
 RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     local src = source
     local inv = INV[src]
@@ -555,10 +625,10 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
 
     ammoSlot   = toInt(ammoSlot)
     weaponSlot = toInt(weaponSlot)
-    if not validGrid(inv, ammoSlot) or not validGrid(inv, weaponSlot) then return pushState(src) end
+    if not validRealSlot(inv, ammoSlot) or not validRealSlot(inv, weaponSlot) then return pushState(src) end
 
-    local ammo = inv.items[ammoSlot]
-    local wpn  = inv.items[weaponSlot]
+    local ammo = getSlot(inv, ammoSlot)
+    local wpn  = getSlot(inv, weaponSlot)
     if not ammo or not wpn then return pushState(src) end
 
     local wd, ad = itemDef(wpn.name), itemDef(ammo.name)
@@ -568,47 +638,97 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
         return pushState(src)
     end
 
-    wpn.meta = wpn.meta or newMeta(wpn.name)
-    local room = Config.Weapon.MaxLoadedAmmo - (wpn.meta.ammo or 0)
+    ensureWeaponMeta(wpn)
+    local cap  = maxAmmoOf(wpn.name)
+    local room = cap - (wpn.meta.ammo or 0)
     if room <= 0 then
-        notify(src, 'Arma este deja plina (max ' .. Config.Weapon.MaxLoadedAmmo .. ').', '#e0c07a')
+        notify(src, ('Arma este deja plina (max %d).'):format(cap), '#e0c07a')
         return pushState(src)
     end
 
     local take = math.min(room, ammo.count)
     wpn.meta.ammo = (wpn.meta.ammo or 0) + take
     ammo.count = ammo.count - take
-    if ammo.count <= 0 then
-        inv.items[ammoSlot] = nil
-        remapHotbar(inv, ammoSlot, nil)
-    end
+    if ammo.count <= 0 then setSlot(inv, ammoSlot, nil) end
 
-    notify(src, ('Incarcat %d gloante. Total: %d/%d'):format(take, wpn.meta.ammo, Config.Weapon.MaxLoadedAmmo), '#8ce07a')
-    saveInv(src)
-    pushState(src)
+    notify(src, ('Incarcat %d gloante. Total: %d/%d'):format(take, wpn.meta.ammo, cap), '#8ce07a')
+    if isHotbarSlot(weaponSlot) then
+        TriggerClientEvent('ph_inventory:cl:weaponMeta', src, weaponSlot, wpn.meta.ammo, wpn.meta.durability)
+    end
+    saveInv(src); pushState(src)
 end)
 
---- use / split / drop din context menu
-RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count)
+-- ----------------------------------------------------------
+--  Atasamente -> arma  (one time use)
+-- ----------------------------------------------------------
+RegisterNetEvent('ph_inventory:sv:applyAttachment', function(attachSlot, weaponSlot)
+    local src = source
+    local inv = INV[src]
+    if not inv then return end
+
+    attachSlot = toInt(attachSlot)
+    weaponSlot = toInt(weaponSlot)
+    if not validRealSlot(inv, attachSlot) or not validRealSlot(inv, weaponSlot) then return pushState(src) end
+
+    local at  = getSlot(inv, attachSlot)
+    local wpn = getSlot(inv, weaponSlot)
+    if not at or not wpn then return pushState(src) end
+
+    local ad, wd = itemDef(at.name), itemDef(wpn.name)
+    if not ad or ad.type ~= 'attachment' or not ad.attachment then return pushState(src) end
+    if not wd or wd.type ~= 'weapon' then return pushState(src) end
+
+    local key  = ad.attachment
+    local acfg = Config.Attachments[key]
+    if not acfg then return pushState(src) end
+
+    local comp = (acfg.components and acfg.components[wd.weaponName]) or acfg.component
+    if not comp then
+        notify(src, 'Atasamentul nu e compatibil cu aceasta arma.', '#e07a7a')
+        return pushState(src)
+    end
+
+    ensureWeaponMeta(wpn)
+    for _, k in ipairs(wpn.meta.attachments) do
+        if k == key then
+            notify(src, 'Atasamentul este deja montat.', '#e0c07a')
+            return pushState(src)
+        end
+    end
+
+    wpn.meta.attachments[#wpn.meta.attachments + 1] = key
+    at.count = at.count - 1
+    if at.count <= 0 then setSlot(inv, attachSlot, nil) end
+
+    notify(src, ('Montat: %s'):format(acfg.label or key), '#8ce07a')
+    TriggerClientEvent('ph_inventory:cl:weaponMods', src, weaponSlot, wpn.meta.attachments)
+    saveInv(src); pushState(src)
+end)
+
+-- ----------------------------------------------------------
+--  Context menu: use / split / drop / rmattach
+-- ----------------------------------------------------------
+RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
     local src = source
     local inv = INV[src]
     if not inv then return end
 
     slot = toInt(slot)
-    if not validGrid(inv, slot) then return pushState(src) end
-    local e = inv.items[slot]
+    if not validRealSlot(inv, slot) then return pushState(src) end
+    local e = getSlot(inv, slot)
     if not e then return pushState(src) end
     local d = itemDef(e.name)
 
     if op == 'use' then
         if not d or not d.usable then return pushState(src) end
         e.count = e.count - 1
-        if e.count <= 0 then inv.items[slot] = nil end
+        if e.count <= 0 then setSlot(inv, slot, nil) end
         TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
         saveInv(src); pushState(src)
 
     elseif op == 'split' then
         count = toInt(count) or 0
+        if isHotbarSlot(slot) then return pushState(src) end     -- split doar in grid
         if count < 1 or count >= e.count or e.meta then return pushState(src) end
         local free = firstFreeSlot(inv)
         if not free then
@@ -625,9 +745,27 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count)
         local c = GetEntityCoords(GetPlayerPed(src))
         local items = { { name = e.name, count = count, meta = e.meta } }
         e.count = e.count - count
-        if e.count <= 0 then inv.items[slot] = nil end
+        if e.count <= 0 then setSlot(inv, slot, nil) end
         createDrop({ x = c.x, y = c.y, z = c.z - 0.9 }, items)
         saveInv(src); pushState(src)
+
+    elseif op == 'rmattach' then
+        if not d or d.type ~= 'weapon' or not e.meta or not e.meta.attachments then return pushState(src) end
+        local key = tostring(extra or '')
+        local removed
+        for idx, k in ipairs(e.meta.attachments) do
+            if k == key then
+                table.remove(e.meta.attachments, idx)
+                removed = k
+                break
+            end
+        end
+        if not removed then return pushState(src) end
+        local acfg = Config.Attachments[removed]
+        notify(src, ('Scos: %s'):format((acfg and acfg.label) or removed), '#e0c07a')
+        TriggerClientEvent('ph_inventory:cl:weaponMods', src, slot, e.meta.attachments)
+        saveInv(src); pushState(src)
+
     else
         pushState(src)
     end
@@ -645,7 +783,7 @@ function dropPreview(items)
     return out
 end
 
-function createDrop(coords, items)  -- luainspect: se atribuie forward-declaratiei locale
+function createDrop(coords, items)
     dropSeq = dropSeq + 1
     local id = dropSeq
     DROPS[id] = { id = id, coords = coords, items = items, expires = GetGameTimer() + Config.Drop.ExpireMs }
@@ -723,7 +861,6 @@ RegisterNetEvent('ph_inventory:sv:equip', function(slot, eqSlot)
     eqSlot = toInt(eqSlot)
     if not validGrid(inv, slot) then return pushState(src) end
 
-    -- daca nu ni s-a dat slotul de haine, il deducem din item
     if not eqSlot then
         local e = inv.items[slot]
         local d = e and itemDef(e.name)
@@ -741,7 +878,6 @@ RegisterNetEvent('ph_inventory:sv:unequip', function(eqSlot)
     local inv = INV[src]
     if not inv then return end
 
-    -- accepta atat numar (101..111) cat si cheie string ('hat')
     local num = toInt(eqSlot)
     if not num and type(eqSlot) == 'string' then num = Config.EquipmentSlotIds[eqSlot] end
     if not isClothingSlot(num) then return pushState(src) end
@@ -756,65 +892,37 @@ RegisterNetEvent('ph_inventory:sv:unequip', function(eqSlot)
 end)
 
 -- ----------------------------------------------------------
---  Hotbar / fast slots  (1 .. Config.HotbarSlots)
+--  Fast slots (index 1..HotbarSlots de la taste)
 -- ----------------------------------------------------------
-RegisterNetEvent('ph_inventory:sv:setHotbar', function(hotIndex, slot)
-    local src = source
-    local inv = INV[src]
-    if not inv then return end
-
-    hotIndex = toInt(hotIndex)
-    if not hotIndex or hotIndex < 1 or hotIndex > Config.HotbarSlots then return pushState(src) end
-
-    if slot == nil or slot == false then
-        inv.hotbar[hotIndex] = nil
-        saveInv(src); return pushState(src)
-    end
-
-    slot = toInt(slot)
-    if not validGrid(inv, slot) then return pushState(src) end
-    local e = inv.items[slot]
-    if not e then return pushState(src) end
-    local d = itemDef(e.name)
-    if not d or not (d.type == 'weapon' or d.usable) then
-        notify(src, 'Doar armele si consumabilele pot fi puse pe fast slot.', '#e07a7a')
-        return pushState(src)
-    end
-
-    -- acelasi slot de grid nu poate fi pe doua fast-sloturi
-    for i = 1, Config.HotbarSlots do
-        if i ~= hotIndex and inv.hotbar[i] == slot then inv.hotbar[i] = nil end
-    end
-    inv.hotbar[hotIndex] = slot
-    saveInv(src); pushState(src)
-end)
-
 RegisterNetEvent('ph_inventory:sv:useHotbar', function(hotIndex)
     local src = source
     local inv = INV[src]
     if not inv then return end
 
     hotIndex = toInt(hotIndex)
-    if not hotIndex then return end
-    local slot = inv.hotbar[hotIndex]
-    local e    = slot and inv.items[slot]
+    if not hotIndex or hotIndex < 1 or hotIndex > Config.HotbarSlots then return end
+    local e = inv.hotbar[hotIndex]
     if not e then return end
     local d = itemDef(e.name)
     if not d then return end
 
     if d.type == 'weapon' then
-        if Config.Weapon.BrokenBlocksEquip and e.meta and (e.meta.durability or 0) <= 0 then
-            return notify(src, 'Arma este stricata. Trebuie reparata.', '#e07a7a')
+        ensureWeaponMeta(e)
+        if Config.Weapon.BrokenBlocksEquip and (e.meta.durability or 0) <= 0 then
+            return notify(src, 'Arma este stricata.', '#e07a7a')
         end
         TriggerClientEvent('ph_inventory:cl:equipWeapon', src, {
-            slot       = slot,
-            weaponName = d.weaponName,
-            ammo       = e.meta and e.meta.ammo or 0,
-            durability = e.meta and e.meta.durability or Config.Weapon.MaxDurability,
+            slot          = hotbarSlotOf(hotIndex),
+            weaponName    = d.weaponName,
+            ammo          = e.meta.ammo or 0,
+            durability    = e.meta.durability or maxDurabilityOf(e.name),
+            maxAmmo       = maxAmmoOf(e.name),
+            maxDurability = maxDurabilityOf(e.name),
+            attachments   = e.meta.attachments or {},
         })
     elseif d.usable then
         e.count = e.count - 1
-        if e.count <= 0 then inv.items[slot] = nil end
+        if e.count <= 0 then inv.hotbar[hotIndex] = nil end
         TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
         saveInv(src); pushState(src)
     end
@@ -826,11 +934,25 @@ RegisterNetEvent('ph_inventory:sv:weaponSync', function(slot, ammo, durability)
     local inv = INV[src]
     if not inv then return end
     slot = toInt(slot)
-    if not validGrid(inv, slot) then return end
-    local e = inv.items[slot]
+    if not validRealSlot(inv, slot) then return end
+    local e = getSlot(inv, slot)
     if not e or not e.meta then return end
-    e.meta.ammo       = math.max(0, math.min(Config.Weapon.MaxLoadedAmmo, toInt(ammo) or e.meta.ammo))
-    e.meta.durability = math.max(0, math.min(Config.Weapon.MaxDurability, tonumber(durability) or e.meta.durability))
+    local d = itemDef(e.name)
+    if not d or d.type ~= 'weapon' then return end
+
+    local cap  = maxAmmoOf(e.name)
+    local maxD = maxDurabilityOf(e.name)
+    e.meta.ammo       = math.max(0, math.min(cap, toInt(ammo) or e.meta.ammo or 0))
+    e.meta.durability = math.max(0, math.min(maxD, tonumber(durability) or e.meta.durability or maxD))
+
+    if Config.Weapon.BreakAtZero and e.meta.durability <= 0 then
+        setSlot(inv, slot, nil)
+        notify(src, 'Arma s-a spart si a fost distrusa.', '#e07a7a')
+        TriggerClientEvent('ph_inventory:cl:weaponBroke', src, slot)
+        saveInv(src); pushState(src)
+        return
+    end
+
     saveInv(src)
 end)
 
@@ -868,7 +990,6 @@ AddEventHandler('playerDropped', function()
     dirty[src] = nil
 end)
 
--- flush periodic al inventarelor modificate
 CreateThread(function()
     while true do
         Wait(15000)
@@ -906,7 +1027,7 @@ RegisterCommand('setslots', function(src, args)
     local target = toInt(args[1])
     local n      = toInt(args[2])
     if not target or not n then print('uz: setslots <playerId> <nrSloturi>') return end
-    n = math.max(Config.DefaultSlots, math.min(500, n))
+    n = math.max(Config.DefaultSlots, math.min(Config.MaxSlots, n))
     local char = charOf(target)
     if not char then print('jucator neincarcat') return end
     MySQL.update.await('UPDATE users SET inv_slots = ? WHERE id = ?', { n, char.id })
@@ -919,7 +1040,7 @@ RegisterCommand('setslots', function(src, args)
 end, false)
 
 -- ----------------------------------------------------------
---  Exports pentru alte resurse
+--  Exports
 -- ----------------------------------------------------------
 exports('GiveItem', function(src, name, count, meta)
     if not INV[src] then return false end

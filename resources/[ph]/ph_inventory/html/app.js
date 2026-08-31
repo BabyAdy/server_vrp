@@ -1,11 +1,13 @@
 /* ph_inventory / html / app.js
  * ----------------------------------------------------------------------------
  *  SERVER-DRIVEN.  Regula de aur:
- *    - drag & drop / click NU modifica niciodata `S.items` sau DOM-ul de date.
- *    - fiecare actiune trimite un `post(...)` catre client.lua -> server.
+ *    - drag & drop / click NU modifica niciodata `S.items` / `S.hotbar` / DOM-ul
+ *      de date.  Fiecare actiune trimite un `post(...)` catre client.lua -> server.
  *    - serverul raspunde cu `state` -> abia atunci `paintAll()` redeseneaza.
  *  Sloturile sunt STRICT numere intregi (parseInt), aceleasi ca in Lua:
- *    grid 1..slots, haine 101..111, hotbar 1..hotN.
+ *    grid 1..slots, haine 5001..5011, fast slots 6001..6000+hotN.
+ *  Fast slot-urile TIN itemul (nu mai e pointer) -> un item de pe hotbar NU
+ *  mai apare si in grid.
  * ----------------------------------------------------------------------------
  */
 const RES = 'ph_inventory';
@@ -31,10 +33,10 @@ const S = {
     slots: 100, maxWeight: 450, weight: 0,
     items: {}, equipment: {}, hotbar: {},
     defs: {}, eqSlots: {}, eqOrder: [], eqSlotIds: {}, clothingSlots: {},
-    hotN: 5, weapon: {}, nearby: [],
+    hotN: 5, hotbarBase: 6001, weapon: {}, attachments: {}, nearby: [],
 };
 let configReady = false;
-let drag = null;                 // { kind, slot, eq, hot, nid, name, count, node }
+let drag = null;                 // { kind, slot, hot, nid, name, count, node }
 let ctxSlot = null;
 let countCtx = null;
 let hoverTimer = null;
@@ -47,11 +49,21 @@ const def = (n) => S.defs[n] || {};
 const short = (n) => (def(n).label || n).replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase() || '??';
 const iconSrc = (n) => `img/${def(n).image || n}.png`;
 
+/** un slot fast? */
+const isHotSlot = (slot) => slot != null && slot >= S.hotbarBase && slot < S.hotbarBase + S.hotN;
+/** intrarea din state pentru orice slot real (grid sau fast) */
+const slotEntry = (slot) => {
+    if (slot == null) return null;
+    if (isHotSlot(slot)) return S.hotbar[slot - S.hotbarBase + 1] || null;
+    return S.items[slot] || null;
+};
+
 /* ---------------------------------------------------- cell paint (in place) */
 function paintCell(refs, item) {
     if (!refs) return;
     const durTxt = (item && item.meta && item.meta.durability != null)
-        ? Math.round(item.meta.durability) + ':' + (item.meta.ammo || 0) : '';
+        ? Math.round(item.meta.durability) + ':' + (item.meta.ammo || 0)
+          + ':' + ((item.meta.attachments || []).join(',')) : '';
     const sig = item ? `${item.name}|${item.count || 1}|${durTxt}` : '';
     if (refs._sig === sig) return;
     refs._sig = sig;
@@ -87,11 +99,13 @@ function paintCell(refs, item) {
     else refs.cnt.style.display = 'none';
 
     if (d.type === 'weapon' && item.meta && item.meta.durability != null) {
-        const max = S.weapon.MaxDurability || 100;
+        const max = d.maxDurability || S.weapon.MaxDurability || 100;
         refs.dura.style.display = '';
         refs.dura.firstChild.style.width = Math.max(0, Math.min(100, (item.meta.durability / max) * 100)) + '%';
+        refs.node.classList.toggle('has-mods', !!(item.meta.attachments && item.meta.attachments.length));
     } else {
         refs.dura.style.display = 'none';
+        refs.node.classList.remove('has-mods');
     }
 }
 
@@ -126,7 +140,7 @@ function buildHotbar() {
     host.innerHTML = '';
     hotCells.length = 0;
     for (let i = 1; i <= S.hotN; i++) {
-        const refs = makeCellNode('hot', { hot: String(i) });
+        const refs = makeCellNode('hot', { hot: String(i), slot: String(S.hotbarBase + i - 1) });
         const k = el('div', 'key'); k.textContent = i; refs.node.appendChild(k);
         hotCells[i] = refs;
         host.appendChild(refs.node);
@@ -146,11 +160,7 @@ function buildEquipment() {
         keys.forEach((k) => {
             const num = toInt(ids[k]);
             const label = (S.eqSlots[k] && S.eqSlots[k].label) || k;
-            const refs = makeCellNode('eq', {
-                eq: k,
-                slot: num != null ? String(num) : '',
-                label,
-            });
+            const refs = makeCellNode('eq', { eq: k, slot: num != null ? String(num) : '', label });
             refs.node.dataset.label = label;
             refs.node._eqKey = k;
             h.appendChild(refs.node);
@@ -163,10 +173,7 @@ function buildEquipment() {
 /* ---------------------------------------------------- paint dynamic */
 function paintAll() {
     for (let i = 1; i <= S.slots; i++) paintCell(gridCells[i], S.items[i] || null);
-    for (let i = 1; i <= S.hotN; i++) {
-        const slot = S.hotbar[i];
-        paintCell(hotCells[i], slot != null ? (S.items[slot] || null) : null);
-    }
+    for (let i = 1; i <= S.hotN; i++) paintCell(hotCells[i], S.hotbar[i] || null);
     if (eqBuilt) for (const k of S.eqOrder) {
         const worn = S.equipment[k];
         paintCell(S.eqRefs[k], worn ? { name: worn.name, count: 1, meta: worn.meta } : null);
@@ -204,7 +211,6 @@ function cellInfo(c) {
         kind: c.dataset.kind,
         node: c,
         slot: toInt(c.dataset.slot),
-        eq: c.dataset.eq || null,
         hot: toInt(c.dataset.hot),
         nid: toInt(c.dataset.nid),
         name: c.dataset.name || null,
@@ -259,97 +265,99 @@ document.addEventListener('mouseup', (e) => {
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (!under) return;
 
-    /* ---- DROPZONE ---- */
+    /* ---- DROPZONE: arunca pe jos ---- */
     if (under.closest('#dropzone')) {
-        if (src.kind === 'grid' && src.slot != null) {
+        if ((src.kind === 'grid' || src.kind === 'hot') && src.slot != null) {
             post('context', { op: 'drop', slot: src.slot, count: src.count });
-        } else if (src.kind === 'hot' && src.hot != null) {
-            post('setHotbar', { hotIndex: src.hot, slot: null });
         }
         return;
     }
 
     const tc = under.closest('.cell');
-    if (!tc) {
-        // scos in gol dintr-un fast slot => elibereaza pointerul
-        if (src.kind === 'hot' && src.hot != null) post('setHotbar', { hotIndex: src.hot, slot: null });
-        return;
-    }
+    if (!tc) return;
     const t = cellInfo(tc);
 
-    /* ---- sursa: NEARBY (drop de pe jos) ---- */
+    /* ---- sursa: NEARBY (ridica de pe jos) ---- */
     if (src.kind === 'near') {
         if (src.nid != null) post('pickup', { id: src.nid });
         return;
     }
 
-    /* ---- sursa: FAST SLOT ---- */
-    if (src.kind === 'hot') {
-        if (src.hot == null) return;
-        if (t.kind === 'hot' && t.hot != null) {
-            // swap pointeri intre doua fast-sloturi
-            const a = S.hotbar[src.hot] != null ? S.hotbar[src.hot] : null;
-            const b = S.hotbar[t.hot] != null ? S.hotbar[t.hot] : null;
-            post('setHotbar', { hotIndex: src.hot, slot: b });
-            post('setHotbar', { hotIndex: t.hot, slot: a });
-        } else {
-            // scos pe grid / haine => doar goleste fast slot-ul (itemul ramane in grid)
-            post('setHotbar', { hotIndex: src.hot, slot: null });
-        }
-        return;
-    }
+    /* ---- restul: totul e un `move` numeric intre doua sloturi ---- */
+    if (src.slot == null || t.slot == null || src.slot === t.slot) return;
 
-    /* ---- sursa: GRID sau HAINE => totul e un `move` numeric ---- */
-    if (src.kind === 'grid' || src.kind === 'eq') {
-        if (src.slot == null) return;
-
-        // asignare pe fast slot (doar din grid)
-        if (t.kind === 'hot') {
-            if (src.kind === 'grid' && t.hot != null) {
-                post('setHotbar', { hotIndex: t.hot, slot: src.slot });
-            }
+    // ammo / atasament -> arma (doar cand tinta e o arma)
+    const tEnt = slotEntry(t.slot);
+    if (tEnt && def(tEnt.name).type === 'weapon') {
+        const sd = def(src.name);
+        if (sd.type === 'ammo') {
+            post('loadAmmo', { ammoSlot: src.slot, weaponSlot: t.slot });
             return;
         }
-
-        if ((t.kind === 'grid' || t.kind === 'eq') && t.slot != null) {
-            if (src.slot === t.slot) return;
-
-            // ammo -> arma (doar grid<->grid)
-            if (src.kind === 'grid' && t.kind === 'grid') {
-                const ti = S.items[t.slot];
-                if (ti && def(ti.name).type === 'weapon' && def(src.name).type === 'ammo') {
-                    post('loadAmmo', { ammoSlot: src.slot, weaponSlot: t.slot });
-                    return;
-                }
-            }
-            post('move', { from: src.slot, to: t.slot, count: src.count });
+        if (sd.type === 'attachment') {
+            post('applyAttachment', { attachSlot: src.slot, weaponSlot: t.slot });
+            return;
         }
     }
+
+    post('move', { from: src.slot, to: t.slot, count: src.count });
 });
 
 /* ---------------------------------------------------- context menu */
-$('#grid').addEventListener('contextmenu', (e) => {
+function openCtx(e, slot) {
+    const it = slotEntry(slot);
+    if (!it) return;
+    ctxSlot = slot;
+    const d = def(it.name);
+    const ctx = $('#ctx');
+
+    ctx.querySelector('[data-op="use"]').style.display = d.usable ? '' : 'none';
+    ctx.querySelector('[data-op="split"]').style.display =
+        (!isHotSlot(slot) && it.count > 1 && !it.meta) ? '' : 'none';
+
+    // butoane ✕ pentru fiecare atasament montat
+    ctx.querySelectorAll('.attach-btn').forEach((b) => b.remove());
+    if (d.type === 'weapon' && it.meta && (it.meta.attachments || []).length) {
+        it.meta.attachments.forEach((key) => {
+            const b = el('button', 'attach-btn');
+            const label = (S.attachments[key] && S.attachments[key].label) || key;
+            b.textContent = `✕ ${label}`;
+            b.dataset.attach = key;
+            ctx.appendChild(b);
+        });
+    }
+
+    ctx.style.left = Math.min(e.clientX, innerWidth - 160) + 'px';
+    ctx.style.top = Math.min(e.clientY, innerHeight - 160) + 'px';
+    ctx.classList.remove('hidden');
+}
+function ctxHandler(e) {
     const c = e.target.closest('.cell');
     if (!c || c.classList.contains('empty')) return;
     e.preventDefault();
-    ctxSlot = toInt(c.dataset.slot);
-    if (ctxSlot == null) return;
-    const it = S.items[ctxSlot];
-    if (!it) return;
-    const d = def(it.name);
+    openCtx(e, toInt(c.dataset.slot));
+}
+$('#grid').addEventListener('contextmenu', ctxHandler);
+$('#hotbar').addEventListener('contextmenu', ctxHandler);
+function hideCtx() {
     const ctx = $('#ctx');
-    ctx.querySelector('[data-op="use"]').style.display = d.usable ? '' : 'none';
-    ctx.querySelector('[data-op="split"]').style.display = (it.count > 1 && !it.meta) ? '' : 'none';
-    ctx.style.left = Math.min(e.clientX, innerWidth - 140) + 'px';
-    ctx.style.top = Math.min(e.clientY, innerHeight - 120) + 'px';
-    ctx.classList.remove('hidden');
-});
-function hideCtx() { $('#ctx').classList.add('hidden'); ctxSlot = null; }
+    ctx.classList.add('hidden');
+    ctx.querySelectorAll('.attach-btn').forEach((b) => b.remove());
+    ctxSlot = null;
+}
 $('#ctx').addEventListener('click', (e) => {
-    const op = e.target.dataset.op;
-    if (!op || ctxSlot == null) return;
-    const it = S.items[ctxSlot];
+    if (ctxSlot == null) return;
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const it = slotEntry(ctxSlot);
     if (!it) { hideCtx(); return; }
+
+    if (btn.dataset.attach) {
+        post('context', { op: 'rmattach', slot: ctxSlot, attach: btn.dataset.attach });
+        hideCtx();
+        return;
+    }
+    const op = btn.dataset.op;
     if (op === 'use') post('context', { op: 'use', slot: ctxSlot });
     else if (op === 'split') openCount('split', ctxSlot, it.count - 1);
     else if (op === 'drop') openCount('drop', ctxSlot, it.count);
@@ -376,9 +384,7 @@ $('#cb-ok').onclick = () => {
 /* ---------------------------------------------------- weapon tooltip */
 function tipTarget(c) {
     if (!c || !c.dataset.name) return null;
-    const hot = toInt(c.dataset.hot);
-    const slot = hot != null ? S.hotbar[hot] : toInt(c.dataset.slot);
-    const it = slot != null ? S.items[slot] : null;
+    const it = slotEntry(toInt(c.dataset.slot));
     return (it && it.meta && def(it.name).type === 'weapon') ? { it, c } : null;
 }
 $('#grid').addEventListener('mouseover', onHover);
@@ -388,12 +394,21 @@ function onHover(e) {
     if (!tgt) return;
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(() => {
+        const d = def(tgt.it.name);
+        const m = tgt.it.meta;
+        const maxA = d.maxAmmo || S.weapon.MaxLoadedAmmo || 500;
+        const maxD = Math.round(d.maxDurability || S.weapon.MaxDurability || 100);
+        const att = (m.attachments || []).map((k) => (S.attachments[k] && S.attachments[k].label) || k);
         const tip = $('#tip');
-        tip.innerHTML = `<b>${def(tgt.it.name).label}</b><br>Gloante: ${tgt.it.meta.ammo || 0}/${S.weapon.MaxLoadedAmmo || 500}` +
-            `<br>Durabilitate: ${Math.round(tgt.it.meta.durability || 0)}%`;
+        tip.innerHTML =
+            `<b>${d.label || tgt.it.name}</b>` +
+            `<br>Ammo: ${m.ammo || 0}/${maxA}` +
+            `<br>Durability: ${Math.round(m.durability || 0)}/${maxD}` +
+            `<br>Atasamente: ${att.length ? att.join(', ') : '—'}` +
+            (att.length ? `<br><span class="tip-sub">(one time use — scoase din meniul ✕)</span>` : '');
         const r = tgt.c.getBoundingClientRect();
-        tip.style.left = Math.min(r.right + 8, innerWidth - 190) + 'px';
-        tip.style.top = r.top + 'px';
+        tip.style.left = Math.min(r.right + 8, innerWidth - 230) + 'px';
+        tip.style.top = Math.max(6, r.top) + 'px';
         tip.classList.remove('hidden');
     }, S.weapon.HoverTooltipMs || 2000);
 }
@@ -414,14 +429,12 @@ document.addEventListener('keydown', (e) => {
 function ingestItems(raw) {
     const out = {};
     if (Array.isArray(raw)) {
-        // format canonic: lista de { slot, name, count, meta }
         raw.forEach((e) => {
             if (!e) return;
             const sl = toInt(e.slot);
             if (sl != null) out[sl] = { name: e.name, count: e.count, meta: e.meta };
         });
     } else if (raw && typeof raw === 'object') {
-        // fallback: map slot -> intrare (chei string sau numerice)
         for (const [k, v] of Object.entries(raw)) {
             const sl = toInt(k);
             if (sl != null && v) out[sl] = { name: v.name, count: v.count, meta: v.meta };
@@ -431,23 +444,14 @@ function ingestItems(raw) {
 }
 
 function ingestHotbar(raw) {
+    // serverul trimite mereu lista { {i, name, count, meta}, ... }
     const out = {};
-    if (Array.isArray(raw)) {
-        raw.forEach((v, idx) => {
-            if (v && typeof v === 'object') {
-                const i = toInt(v.i), sl = toInt(v.s);
-                if (i != null && sl != null) out[i] = sl;
-            } else {
-                const sl = toInt(v);
-                if (sl != null && sl > 0) out[idx + 1] = sl;   // array 0-based -> hotIndex 1-based
-            }
-        });
-    } else if (raw && typeof raw === 'object') {
-        for (const [k, v] of Object.entries(raw)) {
-            const i = toInt(k), sl = toInt(v);
-            if (i != null && sl != null) out[i] = sl;
-        }
-    }
+    const list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+    list.forEach((v) => {
+        if (!v || typeof v !== 'object' || v.name == null) return;
+        const i = toInt(v.i);
+        if (i != null) out[i] = { name: v.name, count: v.count, meta: v.meta };
+    });
     return out;
 }
 
@@ -468,7 +472,9 @@ window.addEventListener('message', (ev) => {
         S.eqSlotIds = c.equipmentSlotIds || {};
         S.clothingSlots = c.clothingSlots || {};
         S.hotN = c.hotbarSlots || 5;
+        S.hotbarBase = c.hotbarBase || 6001;
         S.weapon = c.weapon || {};
+        S.attachments = c.attachments || {};
         S.maxWeight = c.maxWeight || 450;
         S.slots = c.slots || 100;
         buildGrid(); buildHotbar(); buildEquipment();

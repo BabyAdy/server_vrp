@@ -53,7 +53,12 @@ RegisterNUICallback('loadAmmo', function(d, cb)
     cb('ok')
 end)
 RegisterNUICallback('context', function(d, cb)
-    TriggerServerEvent('ph_inventory:sv:context', d.op, num(d.slot), num(d.count))
+    -- d.attach = cheia atasamentului (doar pentru op='rmattach')
+    TriggerServerEvent('ph_inventory:sv:context', d.op, num(d.slot), num(d.count), d.attach)
+    cb('ok')
+end)
+RegisterNUICallback('applyAttachment', function(d, cb)
+    TriggerServerEvent('ph_inventory:sv:applyAttachment', num(d.attachSlot), num(d.weaponSlot))
     cb('ok')
 end)
 RegisterNUICallback('equip', function(d, cb)
@@ -63,11 +68,6 @@ end)
 RegisterNUICallback('unequip', function(d, cb)
     -- eqSlot poate fi numar (101..111) sau cheie string ('hat')
     TriggerServerEvent('ph_inventory:sv:unequip', num(d.eqSlot) or d.eqSlot)
-    cb('ok')
-end)
-RegisterNUICallback('setHotbar', function(d, cb)
-    -- slot poate fi null (golire fast slot)
-    TriggerServerEvent('ph_inventory:sv:setHotbar', num(d.hotIndex), d.slot ~= nil and num(d.slot) or nil)
     cb('ok')
 end)
 RegisterNUICallback('pickup', function(d, cb) TriggerServerEvent('ph_inventory:sv:pickup', num(d.id)); cb('ok') end)
@@ -149,12 +149,27 @@ AddEventHandler('ph-core:client:playerLoaded', function()
 end)
 
 -- ----------------------------------------------------------
---  Arme: echipare + durabilitate/gloante
+--  Arme: echipare + durabilitate/gloante + atasamente
 -- ----------------------------------------------------------
-local function holster()
+--- monteaza componentele GTA pentru lista de atasamente a armei
+local function applyWeaponMods(ped, weaponName, attachments)
+    local hash = GetHashKey(weaponName)
+    for _, key in ipairs(attachments or {}) do
+        local acfg = Config.Attachments and Config.Attachments[key]
+        local comp = acfg and ((acfg.components and acfg.components[weaponName]) or acfg.component)
+        if comp then
+            local ch = GetHashKey(comp)
+            if DoesWeaponTakeWeaponComponent(hash, ch) then
+                GiveWeaponComponentToPed(ped, hash, ch)
+            end
+        end
+    end
+end
+
+local function holster(skipSync)
     if not equipped then return end
     local ped = PlayerPedId()
-    if equipped.dirty then
+    if equipped.dirty and not skipSync then
         TriggerServerEvent('ph_inventory:sv:weaponSync', equipped.slot, equipped.ammo, equipped.durability)
     end
     RemoveWeaponFromPed(ped, equipped.hash)
@@ -174,15 +189,51 @@ RegisterNetEvent('ph_inventory:cl:equipWeapon', function(w)
     if equipped then holster() end
 
     equipped = {
-        slot = w.slot, hash = hash,
+        slot = w.slot, hash = hash, weaponName = w.weaponName,
         ammo = math.floor(w.ammo or 0),
         durability = w.durability or Config.Weapon.MaxDurability,
+        maxDurability = w.maxDurability or Config.Weapon.MaxDurability,
+        maxAmmo = w.maxAmmo or Config.Weapon.MaxLoadedAmmo,
+        attachments = w.attachments or {},
+        broke = false,
         dirty = false,
     }
+    RemoveWeaponFromPed(ped, hash)
     GiveWeaponToPed(ped, hash, 0, false, true)
+    applyWeaponMods(ped, w.weaponName, equipped.attachments)
     SetCurrentPedWeapon(ped, hash, true)
     SetPedAmmo(ped, hash, equipped.ammo)
     lastAmmo = equipped.ammo
+end)
+
+--- serverul a modificat atasamentele armei echipate -> re-da arma curata cu noile componente
+RegisterNetEvent('ph_inventory:cl:weaponMods', function(slot, attachments)
+    if not equipped or equipped.slot ~= slot then return end
+    equipped.attachments = attachments or {}
+    local ped = PlayerPedId()
+    RemoveWeaponFromPed(ped, equipped.hash)
+    GiveWeaponToPed(ped, equipped.hash, 0, false, true)
+    applyWeaponMods(ped, equipped.weaponName, equipped.attachments)
+    SetCurrentPedWeapon(ped, equipped.hash, true)
+    SetPedAmmo(ped, equipped.hash, equipped.ammo)
+    lastAmmo = equipped.ammo
+end)
+
+--- serverul a modificat gloantele/durabilitatea (ex: incarcare munitie pe arma din mana)
+RegisterNetEvent('ph_inventory:cl:weaponMeta', function(slot, ammo, durability)
+    if not equipped or equipped.slot ~= slot then return end
+    equipped.ammo = math.floor(ammo or equipped.ammo)
+    equipped.durability = durability or equipped.durability
+    equipped.dirty = false
+    local ped = PlayerPedId()
+    SetPedAmmo(ped, equipped.hash, equipped.ammo)
+    lastAmmo = equipped.ammo
+end)
+
+--- arma s-a spart pe server -> scoate din mana fara alt sync
+RegisterNetEvent('ph_inventory:cl:weaponBroke', function(slot)
+    if not equipped or equipped.slot ~= slot then return end
+    holster(true)
 end)
 
 -- detectare focuri: scade gloante + durabilitate
@@ -190,9 +241,7 @@ CreateThread(function()
     while true do
         if equipped then
             local ped = PlayerPedId()
-            -- daca a schimbat arma manual din roata, holster logic
             if GetSelectedPedWeapon(ped) ~= equipped.hash then
-                -- lasa; sincronizeaza starea
                 if equipped.dirty then
                     TriggerServerEvent('ph_inventory:sv:weaponSync', equipped.slot, equipped.ammo, equipped.durability)
                     equipped.dirty = false
@@ -206,8 +255,15 @@ CreateThread(function()
                     equipped.dirty = true
                 end
                 lastAmmo = cur
-                if equipped.durability <= 0 then
-                    -- arma stricata: blocheaza tragerea
+
+                if equipped.durability <= 0 and not equipped.broke then
+                    -- arma stricata: blocheaza tragerea si anunta serverul (o va distruge)
+                    equipped.broke = true
+                    DisablePlayerFiring(PlayerId(), true)
+                    SetPedAmmo(ped, equipped.hash, 0)
+                    TriggerServerEvent('ph_inventory:sv:weaponSync', equipped.slot, equipped.ammo, 0)
+                    equipped.dirty = false
+                elseif equipped.broke then
                     DisablePlayerFiring(PlayerId(), true)
                 end
             end
