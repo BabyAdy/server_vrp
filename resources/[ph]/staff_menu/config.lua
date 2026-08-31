@@ -105,11 +105,16 @@ Config.DvallDelaySec = 10
 --  Foloseste /doorinfo langa o usa ca sa afli model + coords.
 -- ----------------------------------------------------------
 Config.Doors = {
-    -- exemplu:
-    -- { name = 'Depozit PD',  model = 'v_ilev_ph_door01', x = 461.79,  y = -1002.9, z = 24.91 },
-    -- { name = 'Poarta X',    model = -1281601925,        x = 100.0,   y = 200.0,   z = 30.0  },
+    { name = 'LSPD - Front Door',  model = -1899196150, x = 434.78, y = -981.80, z = 31.06 },
+
+    -- Cum adaugi altele:
+    --   1. ruleaza /doorinfo -> intri in modul de ochire
+    --   2. te uiti la usa (apare un marker pe ea) si apesi [E]
+    --   3. in consola F8 apare o linie gata de copiat: { name = '', model = ..., x = ..., y = ..., z = ... },
+    --   4. o lipesti aici, pui un nume, si ensure staff_menu
+    -- Usi duble = 2 obiecte -> ochesti fiecare canat separat, adaugi 2 intrari.
 }
-Config.DoorRefreshMs = 15000   -- re-aplica starea "incuiat" periodic
+Config.DoorRefreshMs = 3000   -- re-aplica starea "incuiat" periodic (si dupa schimbari de virtual world)
 
 -- Ce actiuni apar in tab-ul "Staff" (moderare) - filtrate dupa grad la runtime
 Config.StaffActions = {

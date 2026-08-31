@@ -719,6 +719,7 @@ RegisterCommand('setvw', function(src, args)
     if not tSrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
     vw = math.max(0, math.floor(vw))
     SetPlayerRoutingBucket(tSrc, vw)
+    TriggerClientEvent('staff_menu:cl:refreshDoors', tSrc)   -- re-incuie usile in noul virtual world
     local sc, tc = charOf(src), charOf(tSrc)
     logRaw(sc and sc.id, sc and sc.username, 'setvw', ('%s -> vw %d'):format(tc and tc.id or uid, vw))
     notify(src, ('%s -> virtual world %d.'):format(tc and tc.username or ('#' .. uid), vw), '#8ce07a')

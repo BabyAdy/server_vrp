@@ -529,7 +529,9 @@ AddEventHandler('onResourceStop', function(res)
 end)
 
 -- ==========================================================
---  USI INCUIATE PERMANENT  (Config.Doors) - fara UI, doar inchise
+--  USI INCUIATE PERMANENT  (Config.Doors) - fara UI, doar inchise.
+--  Se aplica pe CLIENT, deci raman incuiate in ORICE virtual world
+--  (routing bucket) - sistemul de usi e local, nu tine de bucket.
 -- ==========================================================
 local function applyLockedDoors()
     for i, d in ipairs(Config.Doors or {}) do
@@ -539,8 +541,8 @@ local function applyLockedDoors()
             if not IsDoorRegisteredWithSystem(doorHash) then
                 AddDoorToSystem(doorHash, model, d.x + 0.0, d.y + 0.0, d.z + 0.0, false, false, false)
             end
-            DoorSystemSetDoorState(doorHash, 1, false, false)   -- 1 = LOCKED
-            DoorSystemSetOpenRatio(doorHash, 0.0, false, false)
+            DoorSystemSetDoorState(doorHash, 1, true, true)    -- 1 = LOCKED (request + force update)
+            DoorSystemSetOpenRatio(doorHash, 0.0, true, true)
             DoorSystemSetHoldOpen(doorHash, false)
         end
     end
@@ -551,25 +553,92 @@ CreateThread(function()
     Wait(1500)
     applyLockedDoors()
     while true do
-        Wait(Config.DoorRefreshMs or 15000)
+        Wait(Config.DoorRefreshMs or 3000)
         applyLockedDoors()
     end
 end)
 
--- /doorinfo: cel mai apropiat obiect (usa) -> model + coords in consola + toast
-RegisterNetEvent('staff_menu:cl:doorinfo', function()
+-- re-aplica imediat dupa spawn si dupa o schimbare de virtual world (ex: /setvw)
+AddEventHandler('ph-core:client:playerLoaded', function()
+    SetTimeout(1500, applyLockedDoors)
+end)
+RegisterNetEvent('staff_menu:cl:refreshDoors', function()
+    SetTimeout(300, applyLockedDoors)
+    SetTimeout(1500, applyLockedDoors)
+end)
+
+-- ----------------------------------------------------------
+--  /doorinfo: mod de OCHIRE - te uiti la usa, [E] confirma, [Backspace] anuleaza
+-- ----------------------------------------------------------
+local doorPicking = false
+
+local function rotToDir(rot)
+    local rz, rx = math.rad(rot.z), math.rad(rot.x)
+    local n = math.abs(math.cos(rx))
+    return vector3(-math.sin(rz) * n, math.cos(rz) * n, math.sin(rx))
+end
+
+--- obiectul la care se uita jucatorul (raycast din camera), fallback pe cel mai apropiat
+local function aimedObject()
+    local cam = GetGameplayCamCoord()
+    local dst = cam + rotToDir(GetGameplayCamRot(2)) * 12.0
+    local ray = StartShapeTestLosProbe(cam.x, cam.y, cam.z, dst.x, dst.y, dst.z, 1 + 16, PlayerPedId(), 4)
+    local _, hit, _, _, ent = GetShapeTestResult(ray)
+    if (hit == 1 or hit == true) and ent and ent ~= 0 and DoesEntityExist(ent) and GetEntityType(ent) == 3 then
+        return ent
+    end
+    -- fallback: cel mai apropiat obiect de crosshair
     local pc = GetEntityCoords(PlayerPedId())
-    local best, bestD, bestModel
+    local best, bestD
     for _, obj in ipairs(GetGamePool('CObject')) do
         local d = #(GetEntityCoords(obj) - pc)
-        if not bestD or d < bestD then best, bestD, bestModel = obj, d, GetEntityModel(obj) end
+        if d < 4.0 and (not bestD or d < bestD) then best, bestD = obj, d end
     end
-    if not best or bestD > 6.0 then
-        return SendNUIMessage({ action = 'toast', text = 'Niciun obiect in raza de 6m.' })
-    end
-    local oc = GetEntityCoords(best)
-    local line = ('DOOR  model = %s   x = %.2f, y = %.2f, z = %.2f   (dist %.1fm)')
-        :format(bestModel, oc.x + 0.0, oc.y + 0.0, oc.z + 0.0, bestD)
+    return best
+end
+
+local function reportDoor(ent)
+    local oc = GetEntityCoords(ent)
+    local m = GetEntityModel(ent)
+    local line = ('DOOR  model = %s   x = %.2f, y = %.2f, z = %.2f'):format(m, oc.x + 0.0, oc.y + 0.0, oc.z + 0.0)
+    local cfg = ('{ name = \'\', model = %s, x = %.2f, y = %.2f, z = %.2f },'):format(m, oc.x + 0.0, oc.y + 0.0, oc.z + 0.0)
     print('[doorinfo] ' .. line)
-    SendNUIMessage({ action = 'toast', text = line })
+    print('[doorinfo] ' .. cfg)
+    SendNUIMessage({ action = 'toast', text = line .. '  (copiat in consola F8)' })
+end
+
+RegisterNetEvent('staff_menu:cl:doorinfo', function()
+    if doorPicking then doorPicking = false; return end
+    doorPicking = true
+    CreateThread(function()
+        local started = GetGameTimer()
+        while doorPicking do
+            local ent = aimedObject()
+
+            -- hint pe ecran
+            SetTextFont(4); SetTextScale(0.42, 0.42); SetTextColour(255, 255, 255, 220)
+            SetTextOutline(); SetTextCentre(true)
+            BeginTextCommandDisplayText('STRING')
+            AddTextComponentSubstringPlayerName(
+                ent and ('Uita-te la usa   ~b~[E]~w~ confirma   ~b~[Backspace]~w~ renunta')
+                    or  ('Nu ochesti nicio usa   ~b~[Backspace]~w~ renunta'))
+            EndTextCommandDisplayText(0.5, 0.86)
+
+            if ent then
+                local c = GetEntityCoords(ent)
+                DrawMarker(28, c.x, c.y, c.z, 0, 0, 0, 0, 0, 0, 0.35, 0.35, 0.35, 120, 200, 255, 150, false, false, 2, nil, nil, false)
+                if IsControlJustReleased(0, 38) then           -- E
+                    reportDoor(ent)
+                    doorPicking = false
+                end
+            end
+
+            if IsControlJustReleased(0, 177) or IsControlJustReleased(0, 322)  -- Backspace / Esc
+               or GetGameTimer() - started > 25000 then
+                doorPicking = false
+                SendNUIMessage({ action = 'toast', text = 'doorinfo: anulat.' })
+            end
+            Wait(0)
+        end
+    end)
 end)
