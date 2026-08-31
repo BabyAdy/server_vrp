@@ -15,16 +15,30 @@ const inputbar = document.getElementById('inputbar');
 const input = document.getElementById('input');
 const promptEl = document.getElementById('prompt');
 const sugEl = document.getElementById('suggestions');
+const optBtn = document.getElementById('opt-btn');
+const optPanel = document.getElementById('options');
+const optLinesVal = document.getElementById('opt-lines-val');
+const optPcRow = document.getElementById('opt-pc-row');
+const optPc = document.getElementById('opt-pc');
 
 const state = {
     open: false,
-    cfg: { maxMessages: 47, visibleLines: 17, fadeDelay: 18000, timestamps: true },
+    cfg: { visibleLines: 10, fadeDelay: 18000, timestamps: true, scrollback: 50 },
+    lines: 10,
+    linesMin: 5,
+    linesMax: 20,
+    canPC: false,
+    pcHidden: false,
     suggestions: [],
     history: [],
     histIdx: -1,
     lastActivity: Date.now(),
     sugActive: 0,
 };
+
+function maxMessages() {
+    return Math.max(10, state.lines + (state.cfg.scrollback || 50));
+}
 
 /* GTA ^0..^9 color codes */
 const GTA_COLORS = {
@@ -54,36 +68,42 @@ function colorize(text, baseColor) {
 }
 
 function gameStamp() {
-    // ora reala a clientului ca fallback; ph_hud/ph-core pot trimite stamp explicit
     const d = new Date();
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
 function addMessage(data) {
     data = data || {};
+    const hasSegments = Array.isArray(data.segments) && data.segments.length > 0;
     const line = document.createElement('div');
-    line.className = 'line' + (data.prefix ? '' : ' system');
+    line.className = 'line' + ((data.prefix || hasSegments) ? '' : ' system');
 
     let html = '';
     if (state.cfg.timestamps) {
         html += `<span class="stamp">${esc(data.stamp || gameStamp())}</span>`;
     }
-    if (data.prefix) {
-        const pc = data.prefixColor || '#b98cff';
-        html += `<span class="prefix" style="color:${pc}">${esc(data.prefix)}</span>`;
+
+    if (hasSegments) {
+        for (const seg of data.segments) {
+            html += `<span style="color:${seg.c || '#e8e6f0'}">${esc(seg.t == null ? '' : seg.t)}</span>`;
+        }
+    } else {
+        if (data.prefix) {
+            const pc = data.prefixColor || '#b98cff';
+            html += `<span class="prefix" style="color:${pc}">${esc(data.prefix)}</span>`;
+        }
+        html += colorize(data.text || '', data.textColor);
     }
-    html += colorize(data.text || '', data.textColor);
     line.innerHTML = html;
 
     const atBottom =
         messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
 
     messagesEl.appendChild(line);
-    while (messagesEl.children.length > state.cfg.maxMessages) {
+    while (messagesEl.children.length > maxMessages()) {
         messagesEl.removeChild(messagesEl.firstChild);
     }
 
-    // cand e deschis si esti scrollat in sus, nu te trage jos automat
     if (!state.open || atBottom) {
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -92,11 +112,52 @@ function addMessage(data) {
     chat.classList.remove('faded');
 }
 
+/* ---------------------------------------------------- optiuni */
+function applyLines(n) {
+    n = Math.max(state.linesMin, Math.min(state.linesMax, Math.round(n)));
+    state.lines = n;
+    optLinesVal.textContent = String(n);
+    messagesEl.style.setProperty('--vis-lines', String(n));
+    while (messagesEl.children.length > maxMessages()) {
+        messagesEl.removeChild(messagesEl.firstChild);
+    }
+    if (!state.open) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function renderPcToggle() {
+    optPcRow.classList.toggle('hidden', !state.canPC);
+    optPc.setAttribute('aria-checked', String(!state.pcHidden));
+    optPc.classList.toggle('on', !state.pcHidden);
+}
+
+function saveOptions(partial) {
+    post('setOption', partial);
+}
+
+optBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    optPanel.classList.toggle('hidden');
+    input.focus();
+});
+document.getElementById('opt-lines-dec').addEventListener('click', () => {
+    applyLines(state.lines - 1);
+    saveOptions({ lines: state.lines });
+});
+document.getElementById('opt-lines-inc').addEventListener('click', () => {
+    applyLines(state.lines + 1);
+    saveOptions({ lines: state.lines });
+});
+optPc.addEventListener('click', () => {
+    state.pcHidden = !state.pcHidden;
+    renderPcToggle();
+    saveOptions({ pcHidden: state.pcHidden });
+});
+
 /* ---------------------------------------------------- suggestions */
 function currentToken() {
     const v = input.value;
     if (v[0] !== '/') return null;
-    return v.split(' ')[0];         // "/tow"
+    return v.split(' ')[0];
 }
 
 function renderSuggestions() {
@@ -143,6 +204,7 @@ function openChat(prefill) {
     chat.classList.add('open');
     chat.classList.remove('faded');
     inputbar.classList.remove('hidden');
+    optBtn.classList.remove('hidden');
     input.value = prefill || '';
     updatePrompt();
     renderSuggestions();
@@ -155,10 +217,13 @@ function closeChat(send) {
     state.open = false;
     chat.classList.remove('open');
     inputbar.classList.add('hidden');
+    optBtn.classList.add('hidden');
+    optPanel.classList.add('hidden');
     sugEl.classList.add('hidden');
     input.value = '';
     input.blur();
     state.lastActivity = Date.now();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
     post('close', { message: msg });
 }
 
@@ -175,6 +240,7 @@ input.addEventListener('keydown', (e) => {
         closeChat(true);
     } else if (e.key === 'Escape') {
         e.preventDefault();
+        if (!optPanel.classList.contains('hidden')) { optPanel.classList.add('hidden'); return; }
         closeChat(false);
     } else if (e.key === 'Tab') {
         e.preventDefault();
@@ -226,8 +292,20 @@ window.addEventListener('message', (ev) => {
     switch (d.type) {
         case 'config':
             Object.assign(state.cfg, d.data || {});
-            messagesEl.style.setProperty('--vis-lines', String(state.cfg.visibleLines || 17));
+            if (d.data && d.data.visibleLines) applyLines(d.data.visibleLines);
+            else applyLines(state.lines);
             break;
+        case 'options': {
+            const o = d.data || {};
+            if (o.linesMin != null) state.linesMin = o.linesMin;
+            if (o.linesMax != null) state.linesMax = o.linesMax;
+            if (o.scrollback != null) state.cfg.scrollback = o.scrollback;
+            state.canPC = !!o.canPC;
+            state.pcHidden = !!o.pcHidden;
+            if (o.lines != null) applyLines(o.lines);
+            renderPcToggle();
+            break;
+        }
         case 'message':
             addMessage(d.data);
             break;

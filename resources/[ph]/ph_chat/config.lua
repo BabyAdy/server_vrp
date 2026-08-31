@@ -4,13 +4,28 @@ Config = {}
 Config.OpenKey = 'T'       -- deschide chat-ul pentru un mesaj normal
 Config.CmdKey  = '/'       -- deschide chat-ul cu "/" pus, pentru comenzi
 
-Config.VisibleLines     = 17      -- linii mereu vizibile (chat inchis)
-Config.ScrollbackLines  = 30      -- linii suplimentare pastrate deasupra, vizibile prin scroll
-Config.MaxMessages      = Config.VisibleLines + Config.ScrollbackLines  -- buffer total (47)
+Config.VisibleLines     = 10      -- linii vizibile implicit (chat inchis); jucatorul si le regleaza 5..20 din Optiuni
+Config.LinesMin         = 5
+Config.LinesMax         = 20
+Config.ScrollbackLines  = 50      -- linii suplimentare pastrate deasupra, vizibile prin scroll cand chatul e deschis
 Config.FadeDelay        = 18000   -- ms fara activitate pana se estompeaza (cand e inchis)
 Config.ShowTimestamps   = true    -- prefix [HH:MM] pe fiecare linie (ora din joc)
 Config.MessageMaxLength = 256
 Config.ShowIdInChat     = false   -- true => prefix "[sqlid] Nume" la mesajele jucatorilor
+
+-- ==========================================================
+--  Premium Chat  (/pc [mesaj])
+--  Acces: staff >= Config.PremiumChat.MinStaffGrade  SAU  abonament activ (>= 1s).
+--  Format afisat:  (/pc) [Tag] Username: mesaj
+--    [Tag]  = gradul de staff (cu culoarea lui) daca esti staff,
+--             altfel eticheta abonamentului (Gold #FCD600 / Platinum #8F00FC).
+--    corpul mesajului foloseste TextColor (diferit de Gold si Platinum).
+-- ==========================================================
+Config.PremiumChat = {
+    Prefix         = '(/pc)',
+    TextColor      = '#E7C84B',      -- culoarea corpului mesajului /pc
+    MinStaffGrade  = 'trialhelper',  -- gradul minim de staff care are acces / vede canalul
+}
 
 -- Culori atribuite numelor (rotatie stabila per jucator)
 Config.NameColors = {

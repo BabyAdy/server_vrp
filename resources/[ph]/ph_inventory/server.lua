@@ -235,6 +235,56 @@ local function sanitizeHotbar(inv)
     end
 end
 
+--- Micsoreaza capacitatea grid-ului la `newSlots`.  Itemele de pe sloturile
+--- care dispar se muta (stack-merge sau slot liber) in restul inventarului;
+--- ce nu incape ajunge in Post Office.  Nu se pierde niciun item.
+local function shrinkTo(uid, newSlots)
+    local inv = INV[uid]
+    if not inv then return end
+    newSlots = math.floor(tonumber(newSlots) or inv.slots)
+    if newSlots < Config.DefaultSlots then newSlots = Config.DefaultSlots end
+    if newSlots >= inv.slots then
+        inv.slots = newSlots
+        return
+    end
+
+    local evict = {}
+    for slot, e in pairs(inv.items) do
+        if slot > newSlots then
+            evict[#evict + 1] = e
+            inv.items[slot] = nil
+        end
+    end
+    inv.slots = newSlots   -- firstFreeSlot() scaneaza acum doar 1..newSlots
+
+    for _, e in ipairs(evict) do
+        local d = itemDef(e.name)
+        if d and (d.stack or 1) > 1 and not e.meta and (e.count or 0) > 0 then
+            for s = 1, newSlots do
+                local t = inv.items[s]
+                if t and t.name == e.name and not t.meta and t.count < d.stack then
+                    local mv = math.min(d.stack - t.count, e.count)
+                    t.count = t.count + mv
+                    e.count = e.count - mv
+                    if e.count <= 0 then break end
+                end
+            end
+        end
+        if (e.count or 0) > 0 then
+            local free = firstFreeSlot(inv)
+            if free then
+                inv.items[free] = e
+            else
+                pcall(function()
+                    exports['ph_postoffice']:Deposit(uid,
+                        { name = e.name, count = e.count, meta = e.meta }, 'abonament expirat')
+                end)
+            end
+        end
+    end
+    sanitizeHotbar(inv)
+end
+
 -- ----------------------------------------------------------
 --  Persistenta
 -- ----------------------------------------------------------
@@ -275,9 +325,13 @@ local function loadInv(src)
         row = nil
     end
 
-    local slots  = (row and toInt(row.inv_slots)) or Config.DefaultSlots
-    if slots < Config.DefaultSlots then slots = Config.DefaultSlots end
-    if slots > Config.MaxSlots then slots = Config.MaxSlots end
+    -- capacitate = sloturi de baza (users.inv_slots) + bonus de abonament
+    local base = (row and toInt(row.inv_slots)) or Config.DefaultSlots
+    if base < Config.DefaultSlots then base = Config.DefaultSlots end
+    if base > Config.MaxSlots then base = Config.MaxSlots end
+    local bonus = 0
+    pcall(function() bonus = tonumber(exports['ph_subscriptions']:GetSlotBonus(uid)) or 0 end)
+    local slots = base + bonus
 
     local items, hotbar, equipment = {}, {}, {}
 
@@ -335,15 +389,42 @@ local function loadInv(src)
         end
     end
     for _, e in ipairs(overflow) do
-        local free
-        for i = 1, slots do if not items[i] then free = i break end end
-        if free then items[free] = e end
+        -- 1. incearca sa umpli stack-uri existente
+        local d = itemDef(e.name)
+        if d and (d.stack or 1) > 1 and not e.meta and (e.count or 0) > 0 then
+            for i = 1, slots do
+                local t = items[i]
+                if t and t.name == e.name and not t.meta and t.count < d.stack then
+                    local mv = math.min(d.stack - t.count, e.count)
+                    t.count = t.count + mv
+                    e.count = e.count - mv
+                    if e.count <= 0 then break end
+                end
+            end
+        end
+        -- 2. slot liber
+        if (e.count or 0) > 0 then
+            local free
+            for i = 1, slots do if not items[i] then free = i break end end
+            if free then
+                items[free] = e
+            else
+                -- 3. nu incape -> post office
+                pcall(function()
+                    exports['ph_postoffice']:Deposit(uid,
+                        { name = e.name, count = e.count, meta = e.meta }, 'sloturi reduse')
+                end)
+            end
+        end
     end
 
     for _, e in pairs(items) do ensureWeaponMeta(e) end
     for i = 1, Config.HotbarSlots do ensureWeaponMeta(hotbar[i]) end
 
-    INV[uid] = { slots = slots, items = items, equipment = equipment, hotbar = hotbar }
+    INV[uid] = {
+        slots = slots, baseSlots = base, subBonus = bonus,
+        items = items, equipment = equipment, hotbar = hotbar,
+    }
     sanitizeHotbar(INV[uid])
 end
 
@@ -1030,6 +1111,28 @@ AddEventHandler('playerDropped', function()
     U[src] = nil
 end)
 
+-- ----------------------------------------------------------
+--  Abonamente: bonusul de sloturi s-a schimbat pentru un user
+-- ----------------------------------------------------------
+AddEventHandler('ph_subscriptions:bonusChanged', function(userId, newBonus)
+    userId = tonumber(userId)
+    local inv = INV[userId]
+    if not inv then return end
+    newBonus = math.max(0, math.floor(tonumber(newBonus) or 0))
+    if newBonus == (inv.subBonus or 0) then return end
+
+    inv.subBonus = newBonus
+    local newSlots = (inv.baseSlots or Config.DefaultSlots) + newBonus
+    if newSlots >= inv.slots then
+        inv.slots = newSlots
+    else
+        shrinkTo(userId, newSlots)
+    end
+    saveInv(userId)
+    local s = srcOf(userId)
+    if s then pushState(s) end
+end)
+
 CreateThread(function()
     while true do
         Wait(15000)
@@ -1085,13 +1188,22 @@ RegisterCommand('setslots', function(src, args)
         print(('setslots: nu exista niciun user cu id %s'):format(targetUid))
         return
     end
-    if INV[targetUid] then
-        INV[targetUid].slots = n
-        sanitizeHotbar(INV[targetUid])
+    local inv = INV[targetUid]
+    if inv then
+        inv.baseSlots = n
+        local newSlots = n + (inv.subBonus or 0)
+        if newSlots >= inv.slots then
+            inv.slots = newSlots
+            sanitizeHotbar(inv)
+        else
+            shrinkTo(targetUid, newSlots)
+        end
+        saveInv(targetUid)
         local tsrc = srcOf(targetUid)
         if tsrc then pushState(tsrc) end
     end
-    print(('sloturi pentru user %s setate la %d'):format(targetUid, n))
+    print(('sloturi de baza pentru user %s setate la %d (+%d bonus)'):format(
+        targetUid, n, inv and inv.subBonus or 0))
 end, false)
 
 -- ----------------------------------------------------------
@@ -1128,6 +1240,10 @@ end)
 exports('GetInventory', function(userId)
     return INV[userId]
 end)
+
+--- definitiile de iteme (Config.Items) - pentru alte resurse (ph_postoffice etc.)
+exports('GetItems', function() return Config.Items end)
+exports('GetItemDef', function(name) return Config.Items[name] end)
 
 --- helper pentru alte resurse: SQL id -> inventarul live (sau nil)
 exports('GetInventoryByUserId', function(userId)

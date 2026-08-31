@@ -26,12 +26,13 @@ end
 -- ----------------------------------------------------------
 RegisterNUICallback('ready', function(_, cb)
     SendNUIMessage({ type = 'config', data = {
-        maxMessages  = Config.MaxMessages,
         visibleLines = Config.VisibleLines,
+        scrollback   = Config.ScrollbackLines,
         fadeDelay    = Config.FadeDelay,
         timestamps   = Config.ShowTimestamps,
     }})
     SendNUIMessage({ type = 'suggestions', data = suggestionList() })
+    TriggerServerEvent('ph_chat:requestOptions')   -- ia optiunile salvate (si dupa un restart de resursa)
     cb('ok')
 end)
 
@@ -66,6 +67,16 @@ RegisterKeyMapping('phChatCmd', 'Chat: scrie o comanda', 'keyboard', Config.CmdK
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_chat:receive', function(payload)
     SendNUIMessage({ type = 'message', data = payload })
+end)
+
+-- optiuni per jucator (linii vizibile, toggle Premium Chat) - trimise de server la conectare
+RegisterNetEvent('ph_chat:options', function(opt)
+    SendNUIMessage({ type = 'options', data = opt })
+end)
+
+RegisterNUICallback('setOption', function(data, cb)
+    TriggerServerEvent('ph_chat:setOption', data or {})
+    cb('ok')
 end)
 
 -- ----------------------------------------------------------

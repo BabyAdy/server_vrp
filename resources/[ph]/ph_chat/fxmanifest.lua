@@ -9,6 +9,8 @@ version '0.1.0'
 
 provide 'chat'
 
+dependency 'ph-core'
+
 shared_script 'config.lua'
 client_script 'client.lua'
 server_script 'server.lua'

@@ -169,6 +169,75 @@ local function logAction(staffSrc, action, tName, tId, detail)
     )
 end
 
+--- log crud in `staff_logs` fara sa fie nevoie de un src (folosit la connect/disconnect)
+local function logRaw(userId, username, action, detail)
+    MySQL.insert(
+        'INSERT INTO staff_logs (staff_id, staff_name, action, target_id, target_name, detail) VALUES (?,?,?,?,?,?)',
+        { userId or 0, username or '?', action, userId, username,
+          detail ~= nil and tostring(detail):sub(1, 300) or nil }
+    )
+end
+
+-- ----------------------------------------------------------
+--  Discord webhook
+-- ----------------------------------------------------------
+local function discordSend(title, description, color)
+    local url = Config.Discord and Config.Discord.Webhook
+    if type(url) ~= 'string' or url == '' then return end
+    local body = {
+        username   = Config.Discord.Username or 'Purple Havoc',
+        avatar_url = (Config.Discord.Avatar ~= '' and Config.Discord.Avatar) or nil,
+        embeds = { {
+            title       = title,
+            description = description,
+            color       = color or 8388736,
+            timestamp   = os.date('!%Y-%m-%dT%H:%M:%SZ'),
+        } },
+    }
+    PerformHttpRequest(url, function() end, 'POST', json.encode(body),
+        { ['Content-Type'] = 'application/json' })
+end
+
+-- ----------------------------------------------------------
+--  Anunt de conectare / deconectare pentru staff
+-- ----------------------------------------------------------
+local function isCrashReason(reason)
+    local r = tostring(reason or ''):lower()
+    for _, kw in ipairs(Config.CrashReasons or {}) do
+        if r:find(kw, 1, true) then return true end
+    end
+    return false
+end
+
+--- kind: 'connect' | 'disconnect' | 'crash'
+local function staffNotice(kind, userId, username, gradeKey, reason)
+    local g = exports[PH_CORE]:GetStaffGrade(gradeKey or '')
+    local gradeLabel = (g and g.label) or gradeKey or 'Staff'
+
+    local msg
+    if kind == 'connect' then
+        msg = ('Staff Notice: [%s] %s has connected to the server!'):format(gradeLabel, username)
+    elseif kind == 'crash' then
+        msg = ('Staff Notice: [%s] %s was disconnected from the server! [Reason: Crash]'):format(gradeLabel, username)
+    else
+        msg = ('Staff Notice: [%s] %s has disconnected from the server!'):format(gradeLabel, username)
+    end
+
+    notifyStaff(msg, '#c9a3ff', Config.NoticeMinGrade or 'trialhelper')
+
+    logRaw(userId, username, 'notice_' .. kind,
+        (reason and reason ~= '') and (tostring(reason) .. (' [ID: %s]'):format(userId))
+        or (' [ID: %s]'):format(userId))
+
+    local color = (Config.Discord.Colors or {})[kind]
+    local desc = msg
+    if kind == 'crash' and reason and reason ~= '' then
+        desc = desc .. ('\n`%s`'):format(tostring(reason):sub(1, 200))
+    end
+    discordSend('Staff ' .. kind:sub(1, 1):upper() .. kind:sub(2),
+        desc .. ('\n**[ID: %s]**'):format(userId), color)
+end
+
 local function playerList()
     local out = {}
     for psrc, e in pairs(publics()) do
@@ -499,14 +568,30 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
 end)
 
 -- ----------------------------------------------------------
---  Curatenie
+--  Conectare / deconectare: cache local + anunturi de staff
 -- ----------------------------------------------------------
 AddEventHandler('ph-core:playerLoaded', function(src, char)
-    if char and char.id then S2U[src] = char.id end
+    if not (char and char.id) then return end
+    S2U[src] = { id = char.id, name = char.username, staff = char.staff or '' }
+
+    -- anunt de staff doar daca cel care se conecteaza e staff >= NoticeMinGrade
+    if exports[PH_CORE]:HasStaffRank(src, Config.NoticeMinGrade or 'trialhelper') then
+        staffNotice('connect', char.id, char.username, char.staff)
+    end
 end)
 
-AddEventHandler('playerDropped', function()
-    local uid = S2U[source]
+AddEventHandler('playerDropped', function(reason)
+    local rec = S2U[source]
     S2U[source] = nil
-    if uid then frozen[uid] = nil end
+    if not rec then return end
+
+    frozen[rec.id] = nil
+
+    -- anunt de staff doar daca cel care pleaca era staff >= NoticeMinGrade
+    local minRank = exports[PH_CORE]:StaffRankOf(Config.NoticeMinGrade or 'trialhelper') or 0
+    local rank    = exports[PH_CORE]:StaffRankOf(rec.staff or '') or 0
+    if minRank > 0 and rank >= minRank then
+        local kind = isCrashReason(reason) and 'crash' or 'disconnect'
+        staffNotice(kind, rec.id, rec.name, rec.staff, reason)
+    end
 end)

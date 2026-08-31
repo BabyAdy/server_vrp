@@ -7,7 +7,11 @@ author 'Purple Havoc'
 description 'Purple Havoc - inventar (grid, echipament pe ped, fast slots, drop pe jos, arme cu munitie/durabilitate)'
 version '0.1.0'
 
-dependency 'ph-core'
+dependencies {
+    'ph-core',
+    'ph_subscriptions',
+    'ph_postoffice',
+}
 
 shared_script 'config.lua'
 

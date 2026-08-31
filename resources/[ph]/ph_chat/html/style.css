@@ -29,7 +29,7 @@ html, body {
 /* ---------------------------------------------------- messages */
 #messages {
     --line-h: 21px;
-    --vis-lines: 17;
+    --vis-lines: 10;
     display: flex;
     flex-direction: column;
     max-height: calc(var(--line-h) * var(--vis-lines));   /* inchis: mereu ultimele 17 linii */
@@ -112,6 +112,101 @@ html, body {
     font-size: 14px;
     font-family: inherit;
 }
+
+/* ---------------------------------------------------- options */
+#opt-btn {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(124, 58, 237, 0.22);
+    color: #cdbcff;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+#opt-btn.hidden { display: none; }
+#opt-btn:hover { background: rgba(124, 58, 237, 0.4); color: #fff; }
+
+#options {
+    align-self: flex-start;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(14, 10, 24, 0.92);
+    border: 1px solid rgba(168, 140, 255, 0.35);
+    border-radius: 8px;
+    padding: 10px 12px;
+    backdrop-filter: blur(6px);
+}
+
+.opt-head {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #b98cff;
+}
+
+.opt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.opt-row.hidden { display: none; }
+.opt-row label { font-size: 13px; color: #d8d0f2; }
+
+.opt-lines {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.opt-lines button {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(168, 140, 255, 0.35);
+    border-radius: 5px;
+    background: rgba(124, 58, 237, 0.18);
+    color: #efeafc;
+    font-size: 13px;
+    cursor: pointer;
+}
+.opt-lines button:hover { background: rgba(124, 58, 237, 0.4); }
+#opt-lines-val {
+    min-width: 22px;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+
+/* switch */
+.switch {
+    position: relative;
+    width: 42px;
+    height: 22px;
+    border: none;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.16);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    padding: 0;
+}
+.switch .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #d8d0f2;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.switch.on { background: linear-gradient(90deg, #7c3aed, #b98cff); }
+.switch.on .knob { transform: translateX(20px); background: #fff; }
 
 /* ---------------------------------------------------- suggestions */
 #suggestions {

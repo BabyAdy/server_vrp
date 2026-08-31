@@ -12,6 +12,27 @@ Config.MaxBanDays = 3650            -- 0 zile la ban = permanent
 Config.PlayerRefreshMs = 5000       -- cat de des se reimprospateaza lista de playeri in meniu
 
 -- ----------------------------------------------------------
+--  Anunturi de conectare/deconectare pentru staff
+--    "Staff Notice: [grad] Username has connected to the server!"
+--  Se trimit in chat catre staff >= NoticeMinGrade, se scriu in `staff_logs`
+--  si se trimit pe Discord (cu [ID: <sqlId>] la final).
+-- ----------------------------------------------------------
+Config.NoticeMinGrade = 'trialhelper'
+
+Config.Discord = {
+    Webhook  = '',                       -- pune aici URL-ul webhook-ului (gol = dezactivat)
+    Username = 'Purple Havoc | Staff',
+    Avatar   = '',                       -- URL avatar (optional)
+    Colors   = { connect = 3066993, disconnect = 15105570, crash = 15158332 },
+}
+
+-- Cuvinte-cheie in motivul de drop care inseamna "crash" (nu quit voluntar)
+Config.CrashReasons = {
+    'timed out', 'time out', 'timeout', 'crash', 'connection', 'reset',
+    'overflow', 'malformed', 'hang', 'unexpectedly',
+}
+
+-- ----------------------------------------------------------
 --  Permisiuni: actiune -> grad minim necesar
 --  (cheile din Config.StaffGrades din ph-core)
 -- ----------------------------------------------------------

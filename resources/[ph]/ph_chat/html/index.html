@@ -11,6 +11,27 @@
         <div id="inputbar" class="hidden">
             <span id="prompt">SAY</span>
             <input id="input" type="text" maxlength="256" autocomplete="off" spellcheck="false" />
+            <button id="opt-btn" title="Optiuni chat" tabindex="-1">&#9881;</button>
+        </div>
+
+        <div id="options" class="hidden">
+            <div class="opt-head">Optiuni chat</div>
+
+            <div class="opt-row">
+                <label>Linii vizibile</label>
+                <div class="opt-lines">
+                    <button id="opt-lines-dec" tabindex="-1">&minus;</button>
+                    <span id="opt-lines-val">10</span>
+                    <button id="opt-lines-inc" tabindex="-1">+</button>
+                </div>
+            </div>
+
+            <div class="opt-row hidden" id="opt-pc-row">
+                <label>Premium Chat</label>
+                <button id="opt-pc" class="switch" role="switch" aria-checked="true" tabindex="-1">
+                    <span class="knob"></span>
+                </button>
+            </div>
         </div>
 
         <div id="suggestions" class="hidden"></div>
