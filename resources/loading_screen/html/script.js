@@ -12,7 +12,11 @@ const CFG = {
         ['Manager', 'BabyAdy'],
     ],
     credit: 'Developed by: BabyAdy',
-    introVolume: 0.35, // 0.0 - 1.0  (volumul implicit al clipului introv2.mp4)
+
+    // ── INTRO YOUTUBE ──────────────────────────────────
+    youtubeId: '',        // <-- ID-ul clipului de YouTube (ex: din youtu.be/XXXXXXXXXXX -> 'XXXXXXXXXXX')
+    introVolume: 0.35,    // 0.0 - 1.0  (volumul implicit al clipului)
+    introStart: 0,        // secunda de start in clip (optional)
 };
 /* ────────────────────────────────────────────────────── */
 
@@ -31,20 +35,15 @@ try {
     ).join('');
 } catch (e) { /* ignore */ }
 
-/* ── intro clip audio (mute toggle + volume level) ────────
-   Sunetul vine DIRECT din introv2.mp4 (nu mai exista .mp3 separat,
-   care se desincroniza). Butonul + slider-ul regleaza volumul clipului. */
-const video = $('#bgVideo');
-const muteBtn = $('#muteBtn');
+/* ── intro: YouTube IFrame Player API ────────────────────
+   Video integrat de pe YouTube (fara .mp4 local). autoplay=1, controls=0,
+   fundal fullscreen loop. Butonul + slider-ul de mai jos controleaza
+   player.mute() / player.unMute() / player.setVolume(x). */
+const muteBtn  = $('#muteBtn');
 const audioCtl = $('#audioCtl');
 const volSlider = $('#volSlider');
 
-video.removeAttribute('controls');
-video.loop = true;
-video.playsInline = true;
-try { video.load(); } catch (e) {}   // forteaza CEF sa preia src-ul
-
-const clamp01 = (n) => Math.max(0, Math.min(100, n));
+const clamp01 = (n) => Math.max(0, Math.min(100, n));   // 0..100
 let vol = clamp01(Math.round((CFG.introVolume || 0.35) * 100));
 let muted = false;
 try {
@@ -53,11 +52,12 @@ try {
     muted = localStorage.getItem('ph_ls_muted') === '1';
 } catch (e) {}
 
-const ICO_ON = 'M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1 0 14';
+const ICO_ON  = 'M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1 0 14';
 const ICO_LOW = 'M11 5 6 9H2v6h4l5 4V5z M15.5 8.5a5 5 0 0 1 0 7';
 const ICO_OFF = 'M11 5 6 9H2v6h4l5 4V5z M23 9l-6 6 M17 9l6 6';
 
-const targetVol = () => (muted ? 0 : vol / 100);   // volumul dorit pentru clip (0..1)
+let player = null;
+let ytReady = false;
 
 function paintAudioUI() {
     const eff = muted ? 0 : vol;
@@ -73,68 +73,128 @@ function paintAudioUI() {
     } catch (e) {}
 }
 
-// aplica volumul REAL pe clip (sunetul vine din introv2.mp4, nu dintr-un .mp3)
+// aplica volumul / mute pe playerul YouTube (scara YT e 0..100, la fel ca `vol`)
 function applyAudio() {
     paintAudioUI();
-    video.volume = targetVol();
-    video.muted = targetVol() === 0;
+    if (!player || !ytReady || typeof player.setVolume !== 'function') return;
+    const eff = muted ? 0 : vol;
+    try {
+        if (eff === 0) {
+            player.mute();
+        } else {
+            player.unMute();
+            player.setVolume(eff);
+        }
+    } catch (e) {}
 }
 
-/* Redare - CEF-ul din FiveM permite autoplay CU sunet, deci clipul se aude
-   direct. `muted` se pune doar ca ultim resort daca redarea e refuzata
-   (browser normal / preview), apoi se dezmuteaza. */
-function tryPlay() {
-    if (!video.paused) { applyAudio(); return; }
-    video.muted = targetVol() === 0;          // incearca cu sunet
-    video.volume = targetVol();
-    const p = video.play();
-    if (p && p.catch) {
-        p.catch(() => {
-            video.muted = true;               // refuzat -> porneste mut, dezmutam dupa
-            video.play().catch(() => {});
-        });
-    }
+// (re)porneste redarea
+function kickPlay() {
+    if (!player || !ytReady || typeof player.playVideo !== 'function') return;
+    try {
+        const st = player.getPlayerState ? player.getPlayerState() : -1;
+        if (st !== 1 /* PLAYING */ && st !== 3 /* BUFFERING */) player.playVideo();
+    } catch (e) {}
 }
-
-// cand clipul chiar ruleaza, aliniaza sunetul la setari (dezmuteaza daca a pornit mut fara sa vrei)
-video.addEventListener('playing', applyAudio);
-video.addEventListener('canplay', tryPlay);
-video.addEventListener('loadeddata', tryPlay);
-video.addEventListener('error', () => {
-    const s = document.getElementById('status');
-    if (s) s.textContent = 'intro: eroare la incarcarea clipului (' + (video.error ? video.error.code : '?') + ')';
-});
 
 paintAudioUI();
-tryPlay();
-window.addEventListener('click', tryPlay);
-window.addEventListener('keydown', tryPlay);
-window.addEventListener('pointerdown', tryPlay);
 
-// insista in primele ~10s pana prinde redarea (si dezmuteaza daca a pornit mut din reguli de autoplay)
-let _pt = 0;
-const _pi = setInterval(() => {
-    if (video.paused) { tryPlay(); }
-    else if (!muted && (video.muted || video.volume === 0) && targetVol() > 0) { applyAudio(); }
-    if (++_pt > 50) clearInterval(_pi);
-}, 200);
+/* callback global cerut de iframe_api */
+window.onYouTubeIframeAPIReady = function () {
+    const id = String(CFG.youtubeId || '').trim();
+    if (!id) {
+        const s = document.getElementById('status');
+        if (s) s.textContent = 'Seteaza CFG.youtubeId in script.js';
+        return;
+    }
+    player = new YT.Player('ytPlayer', {
+        width: '100%',
+        height: '100%',
+        videoId: id,
+        playerVars: {
+            autoplay: 1,
+            mute: 1,              // necesar pentru autoplay; dezmutam din onReady / buton
+            controls: 0,         // fara controalele YouTube
+            loop: 1,
+            playlist: id,        // loop pentru un singur clip
+            playsinline: 1,
+            start: parseInt(CFG.introStart, 10) || 0,
+            modestbranding: 1,
+            rel: 0,
+            fs: 0,
+            disablekb: 1,
+            iv_load_policy: 3,
+            cc_load_policy: 0,
+            showinfo: 0,
+        },
+        events: {
+            onReady: function (e) {
+                ytReady = true;
+                try { e.target.playVideo(); } catch (er) {}
+                // cerinta 3: incearca sunetul conform setarilor; daca NUI blocheaza
+                // autoplay-ul cu sunet, ramane mut pana la butonul de volum.
+                applyAudio();
+                setTimeout(applyAudio, 400);
+                setTimeout(applyAudio, 1500);
+            },
+            onStateChange: function (e) {
+                if (e.data === YT.PlayerState.ENDED) { try { e.target.playVideo(); } catch (er) {} }
+                else if (e.data === YT.PlayerState.PLAYING) applyAudio();
+                else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.CUED) kickPlay();
+            },
+            onError: function () {
+                const s = document.getElementById('status');
+                if (s) s.textContent = 'YouTube: nu s-a putut incarca clipul';
+            },
+        },
+    });
+};
 
+// incarca API-ul DUPA ce am definit callback-ul de mai sus
+(function loadYT() {
+    if (window.YT && window.YT.Player) { window.onYouTubeIframeAPIReady(); return; }
+    const t = document.createElement('script');
+    t.src = 'https://www.youtube.com/iframe_api';
+    t.async = true;
+    t.onerror = function () {
+        const s = document.getElementById('status');
+        if (s) s.textContent = 'YouTube API: fara conexiune';
+    };
+    (document.head || document.body).appendChild(t);
+})();
+
+/* ── butonul de volum / mute (interfata proprie) ── */
 muteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     muted = !muted;
-    if (!muted && vol === 0) vol = 25; // unmuting from 0 -> a quiet default
-    applyAudio();
-    if (!muted) tryPlay();
+    if (!muted && vol === 0) vol = 25;        // unmute din 0 -> volum implicit discret
+    applyAudio();                             // -> player.unMute() / player.setVolume()
+    kickPlay();
 });
 
 volSlider.addEventListener('input', (e) => {
     e.stopPropagation();
     vol = clamp01(parseInt(volSlider.value, 10) || 0);
-    muted = false; // moving the slider always takes over from the mute toggle
+    muted = false;                            // slider-ul preia de la butonul de mute
     applyAudio();
-    tryPlay();
+    kickPlay();
 });
 volSlider.addEventListener('click', (e) => e.stopPropagation());
+
+/* orice interactiune a userului -> incearca play + aplica sunetul dorit
+   (cerinta 3: reactivare la prima actiune / la butonul de volum) */
+['click', 'keydown', 'pointerdown'].forEach((ev) =>
+    window.addEventListener(ev, () => { kickPlay(); applyAudio(); }));
+
+// insista in primele ~12s (autoplay-ul YT poate intarzia)
+let _pt = 0;
+const _pi = setInterval(() => {
+    kickPlay();
+    if (ytReady && !muted && vol > 0) {
+        try { if (player.isMuted && player.isMuted()) { player.unMute(); player.setVolume(vol); } } catch (e) {}
+    }
+    if (++_pt > 60) clearInterval(_pi);
+}, 200);
 
 /* ── progress ────────────────────────────────────────────────────────────
    FiveM sends progress in several phases. `loadProgress` finishes early
@@ -204,7 +264,7 @@ window.addEventListener('message', (e) => {
             if (d.message && d.message.length < 64) statusEl.textContent = d.message;
             break;
     }
-    tryPlay();
+    kickPlay();
 });
 
 // keep the bar alive: tiny creep at the very start, and a slow creep through the

@@ -10,9 +10,9 @@
 </head>
 <body>
 
-<!-- intro video - se aude DIRECT din clip (introv2.mp4), fara .mp3 separat -->
+<!-- intro: video integrat de pe YouTube (IFrame Player API), fundal fullscreen loop -->
 <div class="bg">
-    <video id="bgVideo" src="introv2.mp4" autoplay loop playsinline preload="auto"></video>
+    <div id="ytWrap"><div id="ytPlayer"></div></div>
     <div class="bg-grad"></div>
     <div class="bg-vignette"></div>
     <div class="bg-grid"></div>

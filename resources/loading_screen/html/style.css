@@ -14,10 +14,19 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg0)
     font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; user-select: none; }
 
 /* ─────────────── background ─────────────── */
-.bg { position: fixed; inset: 0; z-index: 0; background: #000; }
-#bgVideo {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; opacity: 1;               /* video fully visible */
+.bg { position: fixed; inset: 0; z-index: 0; background: #000; overflow: hidden; }
+
+/* wrapper YouTube: nimic din player nu e clicabil */
+#ytWrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+
+/* iframe-ul YouTube (API-ul pastreaza id-ul #ytPlayer pe iframe-ul generat):
+   dimensionat ca sa acopere mereu tot ecranul (efect "object-fit: cover") */
+#ytPlayer {
+    position: absolute; top: 50%; left: 50%;
+    width: 100vw; height: 56.25vw;            /* 16:9 pe latime */
+    min-width: 177.78vh; min-height: 100vh;   /* 16:9 pe inaltime -> mereu cover */
+    transform: translate(-50%, -50%);
+    border: 0; pointer-events: none;
 }
 /* readability overlay: dark on the left (behind text) + bottom (behind bar),
    a light purple tint everywhere, and a vignette. The centre-right stays clear. */

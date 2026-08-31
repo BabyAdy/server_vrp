@@ -14,5 +14,4 @@ files {
     'html/style.css',
     'html/script.js',
     'html/logo.png',
-    'html/introv2.mp4',
 }
