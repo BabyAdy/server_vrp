@@ -105,7 +105,15 @@ Config.DvallDelaySec = 10
 --  Foloseste /doorinfo langa o usa ca sa afli model + coords.
 -- ----------------------------------------------------------
 Config.Doors = {
-    { name = 'LSPD - Front Door',  model = -1899196150, x = 434.78, y = -981.80, z = 31.06 },
+    { name = 'LSPD - Front Right Door', model = 320433149, x = 434.75, y = -983.22, z = 30.84 },
+    { name = 'LSPD - Front Left Door', model = -1215222675, x = 434.75, y = -980.62, z = 30.84 },
+    { name = 'LSPD - Armory Left Door', model = 185711165, x = 450.10, y = -981.49, z = 30.84 },
+    { name = 'LSPD - Locker Room Door', model = 1557126584, x = 450.10, y = -985.74, z = 30.84 },
+    { name = 'LSPD - Cells Left Door', model = 185711165, x = 446.01, y = -989.45, z = 30.84 },
+    { name = 'LSPD - Cells Right Door', model = 185711165, x = 443.41, y = -989.45, z = 30.84 },
+    { name = 'LSPD - Back Cells Door', model = -1033001619, x = 463.48, y = -1003.54, z = 25.01 },
+    { name = 'LSPD - Back Left Door', model = -2023754432, x = 467.37, y = -1014.45, z = 26.54 },
+    { name = 'LSPD - Back Right Door', model = -2023754432, x = 469.97, y = -1014.45, z = 26.54 },
 
     -- Cum adaugi altele:
     --   1. ruleaza /doorinfo -> intri in modul de ochire
