@@ -8,6 +8,7 @@ local startTime = os.time()
 local frozen = {}      -- [userId] = bool  (SQL id, nu session id)
 local S2U    = {}      -- [src] = userId  (cache pentru curatenie la disconnect)
 local banCache = {}    -- [license] = { id, reason, expires_at }
+local pushNoclip       -- forward-declarat; definit mai jos (folosit si in staff_menu:sv:dev)
 
 -- ----------------------------------------------------------
 --  DB
@@ -540,6 +541,7 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
         local ok = exports[PH_CORE]:SetStaff(tSrc, grade)
         notify(src, ok and ('Grad setat: %s -> %q'):format(tChar.username, grade) or 'Eroare.', ok and '#8ce07a' or '#e07a7a')
         logAction(src, 'set_staff', tChar.username, tChar.id, grade)
+        if ok then pushNoclip(tSrc) end   -- re-evalueaza dreptul de noclip
         TriggerClientEvent('staff_menu:cl:result', src, { ok = ok })
 
     elseif p.op == 'restart_resource' then
@@ -568,11 +570,34 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
 end)
 
 -- ----------------------------------------------------------
+--  Noclip: permisiune (staff >= Config.Noclip.MinGrade)
+-- ----------------------------------------------------------
+function pushNoclip(src)
+    local grade = (Config.Noclip and Config.Noclip.MinGrade) or 'trialadmin'
+    local allowed = exports[PH_CORE]:HasStaffRank(src, grade) == true
+    TriggerClientEvent('staff_menu:cl:noclip', src, allowed)
+end
+
+RegisterNetEvent('staff_menu:sv:reqNoclip', function()
+    pushNoclip(source)
+end)
+
+--- log de accountability cand un staff porneste/opreste noclip
+RegisterNetEvent('staff_menu:sv:noclip', function(on)
+    local src = source
+    local grade = (Config.Noclip and Config.Noclip.MinGrade) or 'trialadmin'
+    if not (exports[PH_CORE]:HasStaffRank(src, grade)) then return end
+    local sc = charOf(src)
+    logRaw(sc and sc.id, sc and sc.username, on == true and 'noclip_on' or 'noclip_off', nil)
+end)
+
+-- ----------------------------------------------------------
 --  Conectare / deconectare: cache local + anunturi de staff
 -- ----------------------------------------------------------
 AddEventHandler('ph-core:playerLoaded', function(src, char)
     if not (char and char.id) then return end
     S2U[src] = { id = char.id, name = char.username, staff = char.staff or '' }
+    pushNoclip(src)
 
     -- anunt de staff doar daca cel care se conecteaza e staff >= NoticeMinGrade
     if exports[PH_CORE]:HasStaffRank(src, Config.NoticeMinGrade or 'trialhelper') then
@@ -595,3 +620,84 @@ AddEventHandler('playerDropped', function(reason)
         staffNotice(kind, rec.id, rec.name, rec.staff, reason)
     end
 end)
+
+-- ----------------------------------------------------------
+--  /heal  si  /revive   (staff >= trialadmin)
+--    fara argument -> pe tine ; cu <sqlId> -> pe jucatorul respectiv (online)
+-- ----------------------------------------------------------
+local function healTarget(src, args, action)
+    if not can(src, action) then
+        return notify(src, 'Nu ai permisiunea pentru aceasta actiune.', '#e07a7a')
+    end
+    local tSrc = src
+    if args[1] then
+        local uid = tonumber(args[1])
+        tSrc = uid and srcByUserId(uid) or nil
+        if not tSrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+    end
+
+    TriggerClientEvent('staff_menu:cl:' .. action, tSrc)
+    local sc = charOf(src)
+    local tc = charOf(tSrc)
+    logRaw(sc and sc.id, sc and sc.username, action, tc and ('target %s'):format(tc.id) or 'self')
+
+    if tSrc == src then
+        notify(src, action == 'heal' and 'Te-ai vindecat (100% HP).' or 'Te-ai resuscitat (100% HP).', '#8ce07a')
+    else
+        notify(src, ('%s: %s (100%% HP).'):format(tc and tc.username or ('#' .. args[1]),
+            action == 'heal' and 'vindecat' or 'resuscitat'), '#8ce07a')
+        notify(tSrc, action == 'heal'
+            and 'Ai fost vindecat de un membru al staff-ului.'
+            or  'Ai fost resuscitat de un membru al staff-ului.', '#8ce07a')
+    end
+end
+
+RegisterCommand('heal',   function(src, args) if src ~= 0 then healTarget(src, args, 'heal') end end, false)
+RegisterCommand('revive', function(src, args) if src ~= 0 then healTarget(src, args, 'revive') end end, false)
+
+-- ----------------------------------------------------------
+--  Comenzi de vehicul  (se executa pe clientul apelantului)
+--    /dv        trialadmin   - sterge vehiculul in care esti / cel mai apropiat
+--    /spawncar  generaladmin - spawneaza [model] descuiat + pornit
+--    /fix       generaladmin - repara + porneste vehiculul
+--    /flip      generaladmin - readuce vehiculul pe roti
+--    /maxperf   manager      - tuneaza la maxim performanta (engine/brake/trans/susp/turbo)
+--    /dvall     manager      - dupa un anunt global, sterge vehiculele neutilizate
+-- ----------------------------------------------------------
+local function vehCmd(src, perm, op, arg)
+    if src == 0 then return end
+    if not can(src, perm) then
+        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
+    end
+    TriggerClientEvent('staff_menu:cl:vehcmd', src, op, arg)
+    local sc = charOf(src)
+    logRaw(sc and sc.id, sc and sc.username, 'veh_' .. op, arg)
+end
+
+RegisterCommand('dv',      function(src)       vehCmd(src, 'dv', 'dv') end, false)
+RegisterCommand('fix',     function(src)       vehCmd(src, 'fix', 'fix') end, false)
+RegisterCommand('flip',    function(src)       vehCmd(src, 'flip', 'flip') end, false)
+RegisterCommand('maxperf', function(src)       vehCmd(src, 'maxperf', 'maxperf') end, false)
+RegisterCommand('spawncar', function(src, args)
+    local model = tostring(args[1] or ''):gsub('%s', ''):lower()
+    if model == '' then return notify(src, 'uz: /spawncar <model>', '#e0c07a') end
+    vehCmd(src, 'spawncar', 'spawncar', model)
+end, false)
+
+RegisterCommand('dvall', function(src)
+    if src ~= 0 and not can(src, 'dvall') then
+        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
+    end
+    local delay = Config.DvallDelaySec or 10
+    local msg = ('STAFF: In %d secunde toate vehiculele neutilizate vor fi sterse!'):format(delay)
+    if GetResourceState('ph_chat') == 'started' then
+        exports['ph_chat']:send(-1, { prefix = 'STAFF', prefixColor = '#ff5a5a', text = msg:gsub('^STAFF: ', ''), textColor = '#ffd6d6' })
+    else
+        TriggerClientEvent('chat:addMessage', -1, { args = { msg } })
+    end
+    local sc = charOf(src)
+    logRaw(sc and sc.id, sc and sc.username, 'veh_dvall', ('delay %ds'):format(delay))
+    SetTimeout(delay * 1000, function()
+        TriggerClientEvent('staff_menu:cl:dvall', -1)
+    end)
+end, false)

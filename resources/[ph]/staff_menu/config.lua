@@ -26,6 +26,24 @@ Config.Discord = {
     Colors   = { connect = 3066993, disconnect = 15105570, crash = 15158332 },
 }
 
+-- ----------------------------------------------------------
+--  Noclip  (tasta F2, staff >= trialadmin)
+--    F2 = toggle ; W/S = fata/spate ; Q/E = sus/jos ; L Shift = cicleaza viteza
+--    Vitezele se deblocheaza in functie de level-ul personajului (users.level).
+-- ----------------------------------------------------------
+Config.Noclip = {
+    Key      = 'F2',
+    MinGrade = 'trialadmin',
+    -- `mps` = viteza in metri/secunda (deplasarea pe frame = mps * frametime)
+    Speeds = {
+        { name = 'Slow',      label = 'Incet',            mps = 3.0,   minLevel = 1  },
+        { name = 'Normal',    label = 'Normal',           mps = 9.0,   minLevel = 1  },
+        { name = 'Fast',      label = 'Rapid',            mps = 20.0,  minLevel = 5  },
+        { name = 'Very Fast', label = 'Foarte rapid',     mps = 45.0,  minLevel = 15 },
+        { name = 'Sasuke',    label = 'MEGA ULTRA RAPID', mps = 140.0, minLevel = 30 },
+    },
+}
+
 -- Cuvinte-cheie in motivul de drop care inseamna "crash" (nu quit voluntar)
 Config.CrashReasons = {
     'timed out', 'time out', 'timeout', 'crash', 'connection', 'reset',
@@ -57,12 +75,23 @@ Config.Perms = {
     unban           = 'headadmin',
     announce        = 'junioradmin',
 
+    -- vehicule (comenzi)
+    dv              = 'trialadmin',
+    spawncar        = 'generaladmin',
+    fix             = 'generaladmin',
+    flip            = 'generaladmin',
+    maxperf         = 'manager',
+    dvall           = 'manager',
+
     -- developer
     set_staff       = 'manager',
     restart_resource = 'developer',
     tp_coords       = 'manager',
     server_info     = 'manager',
 }
+
+-- /dvall: cat asteptam dupa anunt inainte sa stergem (secunde)
+Config.DvallDelaySec = 10
 
 -- Ce actiuni apar in tab-ul "Staff" (moderare) - filtrate dupa grad la runtime
 Config.StaffActions = {

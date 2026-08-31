@@ -37,6 +37,7 @@ end)() end
 
 local function notify(src, text, color)
     if not src then return end
+    if src == 0 then print('^5[ph_factions]^7 ' .. tostring(text)); return end
     if GetResourceState('ph_chat') == 'started' then
         exports['ph_chat']:send(src, { text = text, textColor = color or '#e8e6f0' })
     else
@@ -207,17 +208,17 @@ local function reloadFaction(fid)
     if row then cacheFaction(row) else FACTIONS[fid] = nil end
 end
 
---- adauga toate vehiculele din data/vehicles_vanilla.lua in `faction_vehicles`.
+--- adauga toata lista vanilla globala (ph_vehicles) in `faction_vehicles`.
 --- @return n|nil, err
 local function seedVanillaInto(fid, minRank)
     if not FACTIONS[fid] then return nil, 'Factiune inexistenta.' end
     minRank = math.max(1, math.min(Config.RankCount, tonumber(minRank) or Config.SeedDefaultMinRank))
-    local raw = LoadResourceFile(GetCurrentResourceName(), 'data/vehicles_vanilla.lua')
-    local okL, vanilla = pcall(function()
-        local chunk = raw and load(raw, 'vehicles_vanilla', 't', {})
-        return chunk and chunk() or nil
-    end)
-    if not okL or type(vanilla) ~= 'table' then return nil, 'Nu am putut incarca data/vehicles_vanilla.lua.' end
+
+    local okL, vanilla = pcall(function() return exports['ph_vehicles']:List() end)
+    if not okL or type(vanilla) ~= 'table' then
+        return nil, 'ph_vehicles nu e pornit / nu raspunde.'
+    end
+
     local n = 0
     for cat, arr in pairs(vanilla) do
         if type(arr) == 'table' and Config.Garages[cat] then
@@ -362,6 +363,13 @@ local function isDev(src)
     return ok and r == true
 end
 
+--- true daca src e consola (0) sau staff cu gradul >= gradeKey
+local function staffAtLeast(src, gradeKey)
+    if src == 0 then return true end
+    local ok, r = pcall(function() return exports[PH]:HasStaffRank(src, gradeKey) end)
+    return ok and r == true
+end
+
 -- ----------------------------------------------------------
 --  Operatii de membru
 -- ----------------------------------------------------------
@@ -396,6 +404,35 @@ local function setMemberFaction(userId, fid, rank)
     saveMember(userId)
     local s = srcOf(userId)
     if s then pushSelf(s) end
+end
+
+--- seteaza apartenenta pentru un user ONLINE sau OFFLINE.
+--- `fresh` = true -> reseteaza faction_join la acum.  Returneaza true daca userId exista.
+local function adminSetMembership(userId, fid, rank, fresh)
+    userId = tonumber(userId)
+    if not userId then return false end
+    if not MySQL.scalar.await('SELECT id FROM users WHERE id = ?', { userId }) then return false end
+
+    local s = srcOf(userId)
+    if s and MEMBER[userId] then
+        -- online: prin caile obisnuite (cache + push)
+        if fresh and fid ~= 0 then MEMBER[userId].join = os.date('%Y-%m-%d %H:%M:%S') end
+        setMemberFaction(userId, fid, rank)
+    else
+        -- offline: scrie direct in DB, invalideaza cache-ul
+        if fid == 0 then
+            MySQL.update.await([[
+                UPDATE users SET faction = 0, faction_rank = 0, is_tester = 0, is_supervisor = 0,
+                                 faction_warns = 0, faction_join = NULL WHERE id = ?]], { userId })
+        else
+            MySQL.update.await([[
+                UPDATE users SET faction = ?, faction_rank = ?,
+                                 faction_join = CASE WHEN ? = 1 OR faction_join IS NULL THEN NOW() ELSE faction_join END
+                WHERE id = ?]], { fid, rank, fresh and 1 or 0, userId })
+        end
+        MEMBER[userId] = nil
+    end
+    return true
 end
 
 local function kickMember(userId, reason)
@@ -913,6 +950,171 @@ RegisterCommand('fdelete', function(src, args)
     for tuid, mm in pairs(MEMBER) do if mm.faction == fid then setMemberFaction(tuid, 0, 0) end end
     FACTIONS[fid] = nil; pushPublic(-1)
     notify(src, ('Factiunea #%d stearsa.'):format(fid), '#e0c07a')
+end, false)
+
+-- ----------------------------------------------------------
+--  Comenzi de staff (grad din ph-core), argument = SQL id (users.id)
+-- ----------------------------------------------------------
+
+--- /setleader <sqlId> <factionId>   (staff >= leadadmin)
+--  faction = factionId, faction_rank = 7  SI  factions.leader = sqlId
+RegisterCommand('setleader', function(src, args)
+    if not staffAtLeast(src, 'leadadmin') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Lead Admin.', '#e07a7a') end
+        return
+    end
+    local uid = tonumber(args[1]); local fid = tonumber(args[2])
+    if not uid or not fid then
+        return notify(src, 'uz: /setleader <sqlId> <factionId>', '#e0c07a')
+    end
+    if not FACTIONS[fid] then return notify(src, ('Nu exista factiunea #%s.'):format(fid), '#e07a7a') end
+    if not adminSetMembership(uid, fid, Config.RankLeader, true) then
+        return notify(src, ('Nu exista user cu id %s.'):format(uid), '#e07a7a')
+    end
+    MySQL.update.await('UPDATE factions SET leader = ? WHERE id = ?', { uid, fid })
+    reloadFaction(fid)
+    pushFactionMembers(fid)
+    pushPublic(-1)
+    flog(fid, uidOf(src) or nil, 'admin_setleader', uid, nameOfUser(uid))
+    notify(src, ('User %s este acum Leader (rank 7) al factiunii #%d si e trecut in factions.leader.'):format(uid, fid), '#8ce07a')
+end, false)
+
+--- /setfmember <sqlId> <factionId> <rank>   (staff >= manager)
+RegisterCommand('setfmember', function(src, args)
+    if not staffAtLeast(src, 'manager') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Manager.', '#e07a7a') end
+        return
+    end
+    local uid  = tonumber(args[1])
+    local fid  = tonumber(args[2])
+    local rank = tonumber(args[3])
+    if not uid or not fid or not rank then
+        return notify(src, 'uz: /setfmember <sqlId> <factionId> <rank 1-7>', '#e0c07a')
+    end
+    if fid ~= 0 and not FACTIONS[fid] then return notify(src, ('Nu exista factiunea #%s.'):format(fid), '#e07a7a') end
+    rank = math.max(1, math.min(Config.RankCount, math.floor(rank)))
+    if fid == 0 then rank = 0 end
+    if not adminSetMembership(uid, fid, rank, false) then
+        return notify(src, ('Nu exista user cu id %s.'):format(uid), '#e07a7a')
+    end
+    if FACTIONS[fid] then reloadFaction(fid); pushFactionMembers(fid) end
+    flog(fid, uidOf(src) or nil, 'admin_setmember', uid, nameOfUser(uid), 'rank ' .. rank)
+    notify(src, ('User %s -> factiune #%d, rank %d.'):format(uid, fid, rank), '#8ce07a')
+end, false)
+
+--- /makeleader <sqlId> <factionId>   (staff >= manager)
+--  faction = factionId, faction_rank = 7  FARA a modifica factions.leader
+RegisterCommand('makeleader', function(src, args)
+    if not staffAtLeast(src, 'manager') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Manager.', '#e07a7a') end
+        return
+    end
+    local uid = tonumber(args[1]); local fid = tonumber(args[2])
+    if not uid or not fid then
+        return notify(src, 'uz: /makeleader <sqlId> <factionId>', '#e0c07a')
+    end
+    if not FACTIONS[fid] then return notify(src, ('Nu exista factiunea #%s.'):format(fid), '#e07a7a') end
+    if not adminSetMembership(uid, fid, Config.RankLeader, true) then
+        return notify(src, ('Nu exista user cu id %s.'):format(uid), '#e07a7a')
+    end
+    pushFactionMembers(fid)
+    flog(fid, uidOf(src) or nil, 'admin_makeleader', uid, nameOfUser(uid))
+    notify(src, ('User %s este acum rank 7 in factiunea #%d (factions.leader NU a fost modificat).'):format(uid, fid), '#8ce07a')
+end, false)
+
+--- /changerankname <factionId> <rank> <nume nou...>   (staff >= manager)
+RegisterCommand('changerankname', function(src, args)
+    if not staffAtLeast(src, 'manager') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Manager.', '#e07a7a') end
+        return
+    end
+    local fid  = tonumber(args[1])
+    local rank = tonumber(args[2])
+    local name = table.concat(args, ' ', 3):gsub('^%s+', ''):gsub('%s+$', ''):sub(1, 32)
+    if not fid or not rank or #name < 1 then
+        return notify(src, 'uz: /changerankname <factionId> <rank 1-7> <nume nou>', '#e0c07a')
+    end
+    local f = FACTIONS[fid]
+    if not f then return notify(src, ('Nu exista factiunea #%s.'):format(fid), '#e07a7a') end
+    rank = math.floor(rank)
+    if rank < 1 or rank > Config.RankCount then
+        return notify(src, ('Rank invalid (1-%d).'):format(Config.RankCount), '#e07a7a')
+    end
+    f.ranks[rank] = name
+    MySQL.update.await('UPDATE factions SET ranks = ? WHERE id = ?', { enc(f.ranks), fid })
+    pushFactionMembers(fid)
+    flog(fid, uidOf(src) or nil, 'admin_rankname', nil, nil, ('rank %d = %s'):format(rank, name))
+    notify(src, ('Factiunea #%d, rank %d -> "%s".'):format(fid, rank, name), '#8ce07a')
+end, false)
+
+--- scoate userId din factiune (online sau offline).  online -> si din interiorul HQ.
+local function forceRemoveFromFaction(userId, reason)
+    userId = tonumber(userId)
+    if not userId then return false end
+    if not MySQL.scalar.await('SELECT id FROM users WHERE id = ?', { userId }) then return false end
+    if srcOf(userId) and MEMBER[userId] and MEMBER[userId].faction ~= 0 then
+        kickMember(userId, reason)     -- eject din HQ + cache + save + notify + flog
+    else
+        adminSetMembership(userId, 0, 0, false)
+    end
+    return true
+end
+
+--- curata argumentul de motiv (accepta si prefixul literal "reason:")
+local function reasonFrom(args, i)
+    local r = table.concat(args, ' ', i or 2):gsub('^%s+', ''):gsub('%s+$', '')
+    r = r:gsub('^[Rr]eason:%s*', '')
+    return r ~= '' and r:sub(1, 200) or nil
+end
+
+--- /auninvite <sqlId> [reason]   (staff >= leadadmin)
+--  faction = 0, faction_rank = 0, is_tester = 0, is_supervisor = 0 (+ warns/join curatate)
+local function doAuninvite(src, args)
+    if not staffAtLeast(src, 'leadadmin') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Lead Admin.', '#e07a7a') end
+        return
+    end
+    local uid = tonumber(args[1])
+    if not uid then return notify(src, 'uz: /auninvite <sqlId> [motiv]', '#e0c07a') end
+    local reason = reasonFrom(args, 2)
+    if not forceRemoveFromFaction(uid, reason or 'auninvite') then
+        return notify(src, ('Nu exista user cu id %s.'):format(uid), '#e07a7a')
+    end
+    flog(0, uidOf(src) or nil, 'admin_auninvite', uid, nameOfUser(uid), reason)
+    notify(src, ('User %s scos din factiune%s.'):format(uid, reason and (' — ' .. reason) or ''), '#8ce07a')
+end
+RegisterCommand('auninvite', doAuninvite, false)
+RegisterCommand('uninvite', doAuninvite, false)
+
+--- /removeleader <sqlId> [reason]   (staff >= leadadmin)
+--  ca /auninvite + il scoate din `factions.leader` oriunde ar fi asignat
+RegisterCommand('removeleader', function(src, args)
+    if not staffAtLeast(src, 'leadadmin') then
+        if src ~= 0 then notify(src, 'Necesita grad >= Lead Admin.', '#e07a7a') end
+        return
+    end
+    local uid = tonumber(args[1])
+    if not uid then return notify(src, 'uz: /removeleader <sqlId> [motiv]', '#e0c07a') end
+    local reason = reasonFrom(args, 2)
+
+    if not MySQL.scalar.await('SELECT id FROM users WHERE id = ?', { uid }) then
+        return notify(src, ('Nu exista user cu id %s.'):format(uid), '#e07a7a')
+    end
+
+    -- scoate-l din leader oriunde e asignat
+    local rows = MySQL.query.await('SELECT id FROM factions WHERE leader = ?', { uid }) or {}
+    MySQL.update.await('UPDATE factions SET leader = NULL WHERE leader = ?', { uid })
+
+    forceRemoveFromFaction(uid, reason or 'removeleader')
+
+    for _, r in ipairs(rows) do
+        reloadFaction(r.id)
+        pushFactionMembers(r.id)
+    end
+    pushPublic(-1)
+    flog(0, uidOf(src) or nil, 'admin_removeleader', uid, nameOfUser(uid), reason)
+    notify(src, ('User %s scos din factiune si din factions.leader (%d factiune/i)%s.')
+        :format(uid, #rows, reason and (' — ' .. reason) or ''), '#8ce07a')
 end, false)
 
 -- /factionmenu si /duty se apeleaza din client (vezi client.lua) ->

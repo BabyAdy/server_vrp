@@ -155,3 +155,334 @@ CreateThread(function()
         end
     end
 end)
+
+-- ==========================================================
+--  NOCLIP  (F2, staff >= Config.Noclip.MinGrade)
+-- ==========================================================
+local noclipAllowed = false
+local noclip = false
+local speedIdx = 2                 -- pointer in Config.Noclip.Speeds (Normal by default)
+local SPD = (Config.Noclip and Config.Noclip.Speeds) or {}
+local pushNoclipHud               -- forward-declarat
+
+RegisterNetEvent('staff_menu:cl:noclip', function(allowed)
+    noclipAllowed = allowed == true
+    if not noclipAllowed and noclip then noclip = false end
+end)
+
+AddEventHandler('onClientResourceStart', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    TriggerServerEvent('staff_menu:sv:reqNoclip')
+    TriggerEvent('chat:addSuggestion', '/heal', 'staff>=trialadmin: 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
+    TriggerEvent('chat:addSuggestion', '/revive', 'staff>=trialadmin: reinvie cu 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
+    TriggerEvent('chat:addSuggestion', '/dv', 'staff>=trialadmin: sterge vehiculul din apropiere')
+    TriggerEvent('chat:addSuggestion', '/spawncar', 'staff>=generaladmin: spawneaza un vehicul', { { name = 'model' } })
+    TriggerEvent('chat:addSuggestion', '/fix', 'staff>=generaladmin: repara + porneste vehiculul')
+    TriggerEvent('chat:addSuggestion', '/flip', 'staff>=generaladmin: readu vehiculul pe roti')
+    TriggerEvent('chat:addSuggestion', '/maxperf', 'staff>=manager: tuneaza performanta la maxim')
+    TriggerEvent('chat:addSuggestion', '/dvall', 'staff>=manager: sterge toate vehiculele neutilizate (10s)')
+end)
+AddEventHandler('ph-core:client:playerLoaded', function()
+    TriggerServerEvent('staff_menu:sv:reqNoclip')
+end)
+
+local function myLevel()
+    local ok, ch = pcall(function() return exports['ph-core']:GetCharacter() end)
+    return (ok and type(ch) == 'table' and tonumber(ch.level)) or 1
+end
+
+--- indicii din SPD deblocati de level-ul curent
+local function unlockedSpeeds()
+    local lvl = myLevel()
+    local out = {}
+    for i, s in ipairs(SPD) do
+        if lvl >= (s.minLevel or 1) then out[#out + 1] = i end
+    end
+    if #out == 0 then out[1] = 1 end
+    return out
+end
+
+--- viteza curenta (clamp la ce e deblocat)
+local function currentSpeed()
+    local un = unlockedSpeeds()
+    local ok = false
+    for _, i in ipairs(un) do if i == speedIdx then ok = true break end end
+    if not ok then speedIdx = un[#un] end          -- daca nu mai e valabila, ia cea mai mare deblocata
+    return SPD[speedIdx], un
+end
+
+local function cycleSpeed()
+    local _, un = currentSpeed()
+    local pos = 1
+    for k, i in ipairs(un) do if i == speedIdx then pos = k break end end
+    speedIdx = un[(pos % #un) + 1]
+    pushNoclipHud()
+end
+
+function pushNoclipHud()  -- luainspect: atribuit forward-declaratiei locale
+    local cur, un = currentSpeed()
+    local unlocked = {}
+    for _, i in ipairs(un) do unlocked[i] = true end
+    local tiers = {}
+    for i, s in ipairs(SPD) do
+        tiers[#tiers + 1] = { name = s.name, active = (i == speedIdx), unlocked = unlocked[i] == true }
+    end
+    SendNUIMessage({ action = 'noclip', data = {
+        on = noclip,
+        speedName = cur and cur.name or '?',
+        speedLabel = cur and cur.label or '',
+        tiers = tiers,
+    }})
+end
+
+local function setNoclip(state)
+    if state and not noclipAllowed then return end
+    noclip = state == true
+
+    local ped = PlayerPedId()
+    local veh = GetVehiclePedIsIn(ped, false)
+    local ent = (veh ~= 0 and GetPedInVehicleSeat(veh, -1) == ped) and veh or ped
+
+    SetEntityInvincible(ent, noclip)
+    SetEntityInvincible(ped, noclip)
+    FreezeEntityPosition(ent, noclip)
+    SetEntityCollision(ent, not noclip, not noclip)
+    if ent == ped then
+        SetEntityVisible(ped, true, false)
+    end
+    if not noclip then
+        SetEntityVelocity(ent, 0.0, 0.0, 0.0)
+        FreezeEntityPosition(ent, false)
+        SetEntityCollision(ent, true, true)
+        SetEntityInvincible(ent, false)
+        SetEntityInvincible(ped, false)
+    end
+
+    TriggerServerEvent('staff_menu:sv:noclip', noclip)
+    pushNoclipHud()
+end
+
+-- F2 (rebindabil din Settings > Key Bindings)
+RegisterCommand('+phNoclip', function()
+    if noclipAllowed then setNoclip(not noclip) end
+end, false)
+RegisterCommand('-phNoclip', function() end, false)
+RegisterKeyMapping('+phNoclip', 'Staff: Toggle Noclip', 'keyboard', (Config.Noclip and Config.Noclip.Key) or 'F2')
+
+-- bucla de miscare
+local NC_KILL = {
+    24, 25, 68, 69, 70, 91, 92,           -- attack / aim / vehicle attack
+    30, 31, 32, 33, 34, 35, 36,           -- move WASD + duck
+    21, 22, 44, 38,                       -- sprint / jump / cover / E
+    23, 75,                               -- enter/exit vehicle
+    263, 264, 257, 140, 141, 142,         -- melee
+}
+
+CreateThread(function()
+    while true do
+        if noclip then
+            local ped = PlayerPedId()
+            local veh = GetVehiclePedIsIn(ped, false)
+            local ent = (veh ~= 0 and GetPedInVehicleSeat(veh, -1) == ped) and veh or ped
+
+            for _, c in ipairs(NC_KILL) do DisableControlAction(0, c, true) end
+            DisablePlayerFiring(PlayerId(), true)
+
+            if IsDisabledControlJustPressed(0, 21) then cycleSpeed() end   -- L Shift = viteza
+
+            local cur = currentSpeed()
+            local step = ((cur and cur.mps) or 5.0) * GetFrameTime()
+
+            local rot = GetGameplayCamRot(2)
+            local pitch, yaw = math.rad(rot.x), math.rad(rot.z)
+            local cp = math.cos(pitch)
+            local fx, fy, fz = -math.sin(yaw) * cp, math.cos(yaw) * cp, math.sin(pitch)
+            local rx, ry = math.cos(yaw), math.sin(yaw)
+
+            local dx, dy, dz = 0.0, 0.0, 0.0
+            if IsDisabledControlPressed(0, 32) then dx = dx + fx; dy = dy + fy; dz = dz + fz end   -- W fata
+            if IsDisabledControlPressed(0, 33) then dx = dx - fx; dy = dy - fy; dz = dz - fz end   -- S spate
+            if IsDisabledControlPressed(0, 34) then dx = dx - rx; dy = dy - ry end                 -- A stanga
+            if IsDisabledControlPressed(0, 35) then dx = dx + rx; dy = dy + ry end                 -- D dreapta
+            if IsDisabledControlPressed(0, 44) then dz = dz + 1.0 end                              -- Q sus
+            if IsDisabledControlPressed(0, 38) then dz = dz - 1.0 end                              -- E jos
+
+            local mag = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if mag > 0.001 then
+                dx, dy, dz = dx / mag, dy / mag, dz / mag
+                local p = GetEntityCoords(ent)
+                SetEntityCoordsNoOffset(ent, p.x + dx * step, p.y + dy * step, p.z + dz * step, true, true, true)
+            end
+            SetEntityHeading(ent, rot.z)
+            if ent ~= ped then SetEntityRotation(ent, 0.0, 0.0, rot.z, 2, true) end
+            SetEntityVelocity(ent, 0.0, 0.0, 0.0)
+
+            Wait(0)
+        else
+            Wait(300)
+        end
+    end
+end)
+
+-- daca ti se ia gradul cat esti in noclip
+CreateThread(function()
+    while true do
+        Wait(2000)
+        if noclip and not noclipAllowed then setNoclip(false) end
+    end
+end)
+
+-- ==========================================================
+--  COMENZI DE VEHICUL  (executate pe clientul apelantului)
+-- ==========================================================
+local spawnedCar = nil   -- ultimul vehicul din /spawncar
+
+local function nc_toast(text) SendNUIMessage({ action = 'toast', text = text }) end
+
+--- sterge un vehicul, cerand mai intai controlul retelei (onesync)
+local function deleteVeh(veh)
+    if veh == 0 or not DoesEntityExist(veh) then return end
+    if not NetworkHasControlOfEntity(veh) then
+        NetworkRequestControlOfEntity(veh)
+        local t = 0
+        while not NetworkHasControlOfEntity(veh) and t < 25 do Wait(10); t = t + 1 end
+    end
+    SetEntityAsMissionEntity(veh, true, true)
+    DeleteVehicle(veh)
+    if DoesEntityExist(veh) then DeleteEntity(veh) end
+end
+
+--- vehiculul pe care actionam: cel in care esti, altfel cel mai apropiat in raza
+local function targetVehicle(radius)
+    local ped = PlayerPedId()
+    local v = GetVehiclePedIsIn(ped, false)
+    if v ~= 0 then return v end
+    local pc = GetEntityCoords(ped)
+    local best, bestD = 0, radius or 6.0
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        local d = #(GetEntityCoords(veh) - pc)
+        if d < bestD then best, bestD = veh, d end
+    end
+    return best
+end
+
+local function fixVehicle(veh)
+    if veh == 0 then return end
+    SetVehicleFixed(veh)
+    SetVehicleDeformationFixed(veh)
+    SetVehicleUndriveable(veh, false)
+    SetVehicleEngineHealth(veh, 1000.0)
+    SetVehiclePetrolTankHealth(veh, 1000.0)
+    SetVehicleBodyHealth(veh, 1000.0)
+    SetVehicleDirtLevel(veh, 0.0)
+    SetVehicleEngineOn(veh, true, true, false)
+    SetVehicleFuelLevel(veh, 100.0)
+end
+
+local function flipVehicle(veh)
+    if veh == 0 then return end
+    local h = GetEntityHeading(veh)
+    SetVehicleOnGroundProperly(veh)
+    SetEntityRotation(veh, 0.0, 0.0, h, 2, true)
+end
+
+local function maxPerf(veh)
+    if veh == 0 then return false end
+    SetVehicleModKit(veh, 0)
+    -- doar performanta: engine / brakes / transmission / suspension
+    for _, slot in ipairs({ 11, 12, 13, 15 }) do
+        local n = GetNumVehicleMods(veh, slot)
+        if n and n > 0 then SetVehicleMod(veh, slot, n - 1, false) end
+    end
+    -- turbo
+    ToggleVehicleMod(veh, 18, true)
+    SetVehicleMod(veh, 18, 0, false)
+    -- consumabile de performanta
+    SetVehicleFixed(veh)
+    SetVehicleEngineOn(veh, true, true, false)
+    return true
+end
+
+RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
+    local ped = PlayerPedId()
+
+    if op == 'dv' then
+        local veh = targetVehicle(8.0)
+        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        if veh == spawnedCar then spawnedCar = nil end
+        deleteVeh(veh)
+        nc_toast('Vehicul sters.')
+
+    elseif op == 'fix' then
+        local veh = targetVehicle(6.0)
+        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        fixVehicle(veh)
+        nc_toast('Vehicul reparat si pornit.')
+
+    elseif op == 'flip' then
+        local veh = targetVehicle(6.0)
+        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        flipVehicle(veh)
+        nc_toast('Vehicul readus pe roti.')
+
+    elseif op == 'maxperf' then
+        local veh = GetVehiclePedIsIn(ped, false)
+        if veh == 0 then return nc_toast('Trebuie sa fii intr-un vehicul.') end
+        maxPerf(veh)
+        nc_toast('Performanta setata la maxim.')
+
+    elseif op == 'spawncar' then
+        local model = tostring(arg or ''):lower()
+        local hash = GetHashKey(model)
+        if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
+            return nc_toast(('Model invalid: %s'):format(model))
+        end
+        if spawnedCar and DoesEntityExist(spawnedCar) then deleteVeh(spawnedCar); spawnedCar = nil end
+        RequestModel(hash)
+        local t = 0
+        while not HasModelLoaded(hash) and t < 200 do Wait(10); t = t + 1 end
+        if not HasModelLoaded(hash) then return nc_toast('Nu s-a putut incarca modelul.') end
+
+        local c = GetEntityCoords(ped)
+        local fwd = GetEntityForwardVector(ped)
+        local veh = CreateVehicle(hash, c.x + fwd.x * 3.0, c.y + fwd.y * 3.0, c.z + 0.5, GetEntityHeading(ped), true, false)
+        SetModelAsNoLongerNeeded(hash)
+        SetVehicleHasBeenOwnedByPlayer(veh, true)
+        SetEntityAsMissionEntity(veh, true, true)
+        SetVehicleOnGroundProperly(veh)
+        SetVehicleDoorsLocked(veh, 1)         -- descuiat
+        SetVehicleNeedsToBeHotwired(veh, false)
+        SetVehicleEngineOn(veh, true, true, false)
+        SetVehicleDirtLevel(veh, 0.0)
+        SetPedIntoVehicle(ped, veh, -1)
+        spawnedCar = veh
+        nc_toast(('Spawnat: %s'):format(model))
+    end
+end)
+
+-- /dvall: sterge vehiculele fara nimeni in ele (in acest client), fara sa blocheze
+RegisterNetEvent('staff_menu:cl:dvall', function()
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        if DoesEntityExist(veh) then
+            local empty = IsVehicleSeatFree(veh, -1)
+            if empty then
+                for seat = 0, GetVehicleMaxNumberOfPassengers(veh) - 1 do
+                    if not IsVehicleSeatFree(veh, seat) then empty = false break end
+                end
+            end
+            if empty then
+                if veh == spawnedCar then spawnedCar = nil end
+                NetworkRequestControlOfEntity(veh)
+                SetEntityAsMissionEntity(veh, true, true)
+                DeleteVehicle(veh)
+                if DoesEntityExist(veh) then DeleteEntity(veh) end
+            end
+        end
+    end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res == GetCurrentResourceName() and spawnedCar and DoesEntityExist(spawnedCar) then
+        DeleteVehicle(spawnedCar)
+    end
+end)

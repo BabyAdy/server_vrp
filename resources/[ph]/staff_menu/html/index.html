@@ -105,7 +105,27 @@
             </div>
         </div>
 
-        <div id="toast" class="hidden"></div>
+    </div>
+
+    <!-- toast: in afara #wrap ca sa apara si cu meniul inchis (comenzi de vehicul, noclip) -->
+    <div id="toast" class="hidden"></div>
+
+    <!-- ===== NOCLIP HUD (se afiseaza si cu meniul inchis) ===== -->
+    <div id="noclip-hud" class="hidden">
+        <div class="nc-controls">
+            <span class="nc-grp"><kbd>F2</kbd> Toggle Noclip</span>
+            <span class="nc-sep"></span>
+            <span class="nc-grp"><kbd>Q</kbd><kbd>E</kbd> Up / Down</span>
+            <span class="nc-sep"></span>
+            <span class="nc-grp"><kbd>W</kbd><kbd>S</kbd> Front / Back</span>
+            <span class="nc-sep"></span>
+            <span class="nc-grp"><kbd>L Shift</kbd> Speed</span>
+        </div>
+        <div class="nc-speed">
+            <span class="nc-speed-cur">Speed <b id="nc-speed-name">Normal</b></span>
+            <span class="nc-speed-lbl" id="nc-speed-lbl"></span>
+            <span class="nc-tiers" id="nc-tiers"></span>
+        </div>
     </div>
 
     <script src="app.js"></script>

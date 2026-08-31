@@ -85,6 +85,18 @@ AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     TriggerEvent('chat:addSuggestion', '/duty', 'Pune-te / scoate-te din tura (factiune)')
     TriggerEvent('chat:addSuggestion', '/factionmenu', 'Deschide meniul factiunii (rank >= 6 / tester / supervisor)')
+    TriggerEvent('chat:addSuggestion', '/setleader', 'staff>=leadadmin: leader + factions.leader', {
+        { name = 'sqlId' }, { name = 'factionId' } })
+    TriggerEvent('chat:addSuggestion', '/setfmember', 'staff>=manager: seteaza factiune + rank', {
+        { name = 'sqlId' }, { name = 'factionId' }, { name = 'rank 1-7' } })
+    TriggerEvent('chat:addSuggestion', '/makeleader', 'staff>=manager: rank 7 fara factions.leader', {
+        { name = 'sqlId' }, { name = 'factionId' } })
+    TriggerEvent('chat:addSuggestion', '/changerankname', 'staff>=manager: redenumeste un rank', {
+        { name = 'factionId' }, { name = 'rank 1-7' }, { name = 'nume nou' } })
+    TriggerEvent('chat:addSuggestion', '/auninvite', 'staff>=leadadmin: scoate din factiune', {
+        { name = 'sqlId' }, { name = 'motiv (optional)' } })
+    TriggerEvent('chat:addSuggestion', '/removeleader', 'staff>=leadadmin: scoate din factiune + din factions.leader', {
+        { name = 'sqlId' }, { name = 'motiv (optional)' } })
 end)
 
 -- ----------------------------------------------------------

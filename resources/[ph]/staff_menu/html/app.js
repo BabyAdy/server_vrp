@@ -323,5 +323,25 @@ window.addEventListener('message', (ev) => {
         else if (p.tab === 'tickets') renderTickets(p.list);
         else if (p.tab === 'active') renderActive(p.list);
         else if (p.tab === 'developer') renderDevInfo(p.info);
+    } else if (d.action === 'noclip') {
+        renderNoclip(d.data || {});
     }
 });
+
+/* ------------------------------------------------ noclip HUD */
+function renderNoclip(n) {
+    const hud = document.getElementById('noclip-hud');
+    if (!hud) return;
+    if (!n.on) { hud.classList.add('hidden'); return; }
+    hud.classList.remove('hidden');
+    const nm = document.getElementById('nc-speed-name');
+    const lbl = document.getElementById('nc-speed-lbl');
+    const tiers = document.getElementById('nc-tiers');
+    if (nm) nm.textContent = n.speedName || '?';
+    if (lbl) lbl.textContent = n.speedLabel ? '· ' + n.speedLabel : '';
+    if (tiers) {
+        tiers.innerHTML = (n.tiers || []).map((t) =>
+            `<span class="t${t.active ? ' active' : ''}${t.unlocked ? '' : ' locked'}">${String(t.name).replace(/[<>&]/g, '')}</span>`
+        ).join('');
+    }
+}
