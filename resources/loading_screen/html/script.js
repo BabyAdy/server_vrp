@@ -42,6 +42,7 @@ const volSlider = $('#volSlider');
 video.removeAttribute('controls');
 video.loop = true;
 video.playsInline = true;
+try { video.load(); } catch (e) {}   // forteaza CEF sa preia src-ul
 
 const clamp01 = (n) => Math.max(0, Math.min(100, n));
 let vol = clamp01(Math.round((CFG.introVolume || 0.35) * 100));
