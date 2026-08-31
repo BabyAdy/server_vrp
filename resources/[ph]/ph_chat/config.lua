@@ -23,7 +23,7 @@ Config.ShowIdInChat     = true   -- true => prefix "[sqlid] Nume" la mesajele ju
 -- ==========================================================
 Config.PremiumChat = {
     Prefix         = '(/pc)',
-    TextColor      = '#E7C84B',      -- culoarea corpului mesajului /pc
+    TextColor      = '#bf60ff',      -- culoarea corpului mesajului /pc
     MinStaffGrade  = 'trialhelper',  -- gradul minim de staff care are acces / vede canalul
 }
 

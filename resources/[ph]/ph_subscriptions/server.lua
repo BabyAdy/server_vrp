@@ -331,3 +331,73 @@ RegisterCommand('subcheck', function(src, args)
     end
     print(('  bonus sloturi: +%d'):format(rec.bonus or 0))
 end, false)
+
+-- ----------------------------------------------------------
+--  /debugsubs  - pentru staff >= manager (sau consola / ph.admin)
+--  Seteaza durata ramasa a unui abonament si arata starea inainte/dupa.
+--    /debugsubs <sqlId> <gold|platinum> <zile> [ore] [minute] [secunde]
+-- ----------------------------------------------------------
+local function canDebug(src)
+    if src == 0 then return true end
+    if IsPlayerAceAllowed(src, 'ph.admin') then return true end
+    local ok, r = pcall(function() return exports['ph-core']:HasStaffRank(src, 'manager') end)
+    return ok and r == true
+end
+
+RegisterCommand('debugsubs', function(src, args)
+    if not canDebug(src) then
+        if src ~= 0 then notify(src, 'Nu ai acces la /debugsubs (necesita grad >= Manager).', '#e07a7a') end
+        return
+    end
+
+    local function out(text, color)
+        if src == 0 then print('[debugsubs] ' .. text) else notify(src, text, color) end
+    end
+
+    local uid  = tonumber(args[1])
+    local tier = (args[2] or ''):lower()
+    if not uid or not Config.Tiers[tier] then
+        out('uz: /debugsubs <sqlId> <gold|platinum> <zile> [ore] [minute] [secunde]', '#e0c07a')
+        return
+    end
+
+    local rec = getRec(uid)
+    if not rec then
+        out(('Nu exista niciun user cu id %s.'):format(uid), '#e07a7a')
+        return
+    end
+
+    local before = rec[tier] or 0
+    local secs   = durFromArgs(args, 3)
+    local after  = setTime(uid, tier, secs)
+    local cfg    = Config.Tiers[tier]
+
+    out(('debugsubs: user %s / %s'):format(uid, cfg.label), '#b98cff')
+    out(('  inainte: %s'):format(
+        tierActive(before) and ('activ, ' .. fmtRemaining(before - now())) or 'inactiv'), '#cfc9e6')
+    out(('  setat:   %s  (%ds)'):format(fmtRemaining(secs), secs), '#cfc9e6')
+    out(('  acum:    %s%s'):format(
+        tierActive(after) and ('activ, ' .. fmtRemaining(after - now())) or 'inactiv',
+        after > 0 and (' -> ' .. os.date('%d.%m.%Y %H:%M', after)) or ''), '#8ce07a')
+    out(('  bonus sloturi user: +%d'):format((SUBS[uid] and SUBS[uid].bonus) or 0), '#8ce07a')
+
+    announceTo(uid, ('Abonamentul %s a fost setat la %s de un membru al staff-ului.')
+        :format(cfg.label, fmtRemaining(secs)), '#e0c07a')
+end, false)
+
+AddEventHandler('onResourceStart', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    if GetResourceState('ph_chat') == 'started' then
+        TriggerClientEvent('chat:addSuggestion', -1, '/debugsubs',
+            'Seteaza durata unui abonament (staff >= Manager)',
+            { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'zile' },
+              { name = 'ore' }, { name = 'minute' }, { name = 'secunde' } })
+    end
+end)
+
+AddEventHandler('ph-core:playerLoaded', function(src)
+    TriggerClientEvent('chat:addSuggestion', src, '/debugsubs',
+        'Seteaza durata unui abonament (staff >= Manager)',
+        { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'zile' },
+          { name = 'ore' }, { name = 'minute' }, { name = 'secunde' } })
+end)

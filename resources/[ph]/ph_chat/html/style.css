@@ -27,12 +27,19 @@ html, body {
 #chat.open  { opacity: 1; }
 
 /* ---------------------------------------------------- messages */
+/*
+ * Inaltime CONSTANTA = exact <vis-lines> linii, in ambele stari.
+ * Asa bara de scris (#inputbar) nu se misca niciodata cand deschizi chat-ul
+ * sau cand pica mesaje noi.  Deschis = aceeasi fereastra, doar ca poti da
+ * scroll in sus dupa mesajele care au trecut.
+ */
 #messages {
     --line-h: 21px;
     --vis-lines: 10;
+    flex: 0 0 auto;
+    height: calc(var(--line-h) * var(--vis-lines));
     display: flex;
     flex-direction: column;
-    max-height: calc(var(--line-h) * var(--vis-lines));   /* inchis: mereu ultimele 17 linii */
     overflow: hidden;
     padding-right: 6px;
     scrollbar-width: thin;
@@ -40,24 +47,16 @@ html, body {
     mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
 }
 
-/*
- * Lipeste mesajele de baza cand sunt putine, DAR fara `justify-content: flex-end`
- * (care ar taia definitiv liniile vechi si ar bloca scroll-ul in sus).
- */
+/* lipeste mesajele de baza cand sunt putine, fara sa blocheze scroll-ul in sus */
 #messages::before { content: ''; margin-top: auto; flex: 0 0 auto; }
 
 #messages::-webkit-scrollbar { width: 7px; }
 #messages::-webkit-scrollbar-thumb { background: rgba(168, 140, 255, 0.55); border-radius: 4px; }
 
-/* deschis: se vad si cele ~30 de linii de deasupra, prin scroll (rotita mouse / PageUp-PageDown) */
+/* deschis: aceeasi inaltime, doar devine scrollabil (rotita mouse / PageUp-PageDown) */
 #chat.open #messages {
-    max-height: min(64vh, calc(var(--line-h) * 48));
     overflow-y: auto;
     mask-image: none;
-    background: rgba(10, 7, 18, 0.34);
-    border: 1px solid rgba(168, 140, 255, 0.18);
-    border-radius: 8px;
-    padding: 6px 10px;
 }
 
 .line {
