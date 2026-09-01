@@ -839,8 +839,10 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
     if op == 'use' then
         if not d or not d.usable then return pushState(src) end
         e.count = e.count - 1
+        local usedName = e.name
         if e.count <= 0 then setSlot(inv, slot, nil) end
-        TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
+        TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, usedName)
+        TriggerEvent('ph_inventory:server:used', uid, usedName, d)   -- hook pentru alte resurse
         saveInv(uid); pushState(src)
 
     elseif op == 'split' then
@@ -1043,8 +1045,10 @@ RegisterNetEvent('ph_inventory:sv:useHotbar', function(hotIndex)
         })
     elseif d.usable then
         e.count = e.count - 1
+        local usedName = e.name
         if e.count <= 0 then inv.hotbar[hotIndex] = nil end
-        TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, e.name)
+        TriggerClientEvent('ph_inventory:cl:useEffect', src, d.effect, d.value, usedName)
+        TriggerEvent('ph_inventory:server:used', uid, usedName, d)   -- hook pentru alte resurse
         saveInv(uid); pushState(src)
     end
 end)

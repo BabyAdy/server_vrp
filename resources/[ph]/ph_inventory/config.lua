@@ -133,6 +133,10 @@ Config.Items = {
     lockpick   = { label = 'Lockpick',      weight = 0.2, stack = 10,  type = 'item', usable = true, effect = 'lockpick' },
     dirtymoney = { label = 'Teanc de bani', weight = 0.05, stack = 500, type = 'item' },
 
+    -- bilete de abonament (din /shop) - la folosire acorda 30 zile prin ph_shop
+    sub_ticket_gold     = { label = 'Gold Subscription Ticket',     weight = 0.1, stack = 5, type = 'item', usable = true, effect = 'sub_ticket' },
+    sub_ticket_platinum = { label = 'Platinum Subscription Ticket', weight = 0.1, stack = 5, type = 'item', usable = true, effect = 'sub_ticket' },
+
     -- arme  (maxAmmo implicit = Config.Weapon.MaxLoadedAmmo = 500;
     --        revolvere / gadgeturi -> maxAmmo = 100)
     weapon_pistol   = { label = 'Pistol', weight = 1.2, stack = 1, type = 'weapon', weaponName = 'WEAPON_PISTOL',      ammoType = 'ammo_pistol' },

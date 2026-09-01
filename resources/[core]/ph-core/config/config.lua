@@ -138,6 +138,9 @@ Config.StaffMsgGrades = {
 
     -- ph_factions
     faction      = 'leadadmin',
+
+    -- ph_shop / ph_clans
+    clan         = 'leadadmin',
 }
 
 -- ----------------------------------------------------------

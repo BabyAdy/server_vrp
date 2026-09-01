@@ -187,3 +187,109 @@ html, body {
     color: #cbc3e6;
     font-variant-numeric: tabular-nums;
 }
+
+/* ==================================================== SPEEDOMETER (dreapta jos) */
+#veh {
+    position: absolute;
+    right: 1.6vw;
+    bottom: 3.4vh;
+    width: 232px;
+    padding: 12px 14px 11px;
+    border-radius: 14px;
+    background: rgba(16, 11, 28, 0.72);
+    border: 1px solid rgba(185, 140, 255, 0.28);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(6px);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+#veh.hidden { display: none; }
+
+#veh .spd {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+#veh .spd #v-kmh {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+}
+#veh .spd .u {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #a89bc7;
+}
+#veh .spd .gear {
+    margin-left: auto;
+    min-width: 30px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: #b98cff;
+    background: rgba(185, 140, 255, 0.14);
+    border: 1px solid rgba(185, 140, 255, 0.3);
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+#veh .rpm {
+    margin: 8px 0 10px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(10, 7, 18, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+#veh .rpm i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #7be07a, #b98cff 65%, #ff5a5a);
+    transition: width 0.12s linear;
+}
+
+#veh .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+#veh .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 7px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #6f6790;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+}
+#veh .chip svg { width: 14px; height: 14px; display: block; }
+#veh .chip b { color: #cbc3e6; font-variant-numeric: tabular-nums; }
+#veh .chip.on { color: #7be07a; border-color: rgba(123, 224, 122, 0.4); background: rgba(123, 224, 122, 0.12); }
+#veh .chip.on b { color: #d7f5d0; }
+#veh .chip.hi { color: #6bd0ff; border-color: rgba(107, 208, 255, 0.45); background: rgba(107, 208, 255, 0.14); }
+#veh .chip.bad { color: #ff6a6a; border-color: rgba(255, 106, 106, 0.4); background: rgba(255, 106, 106, 0.12); }
+#veh .chip.bad b { color: #ffd2d2; }
+
+#veh .odo {
+    margin-top: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #a89bc7;
+}
+#veh .odo b { color: #f1eefb; font-size: 12px; font-variant-numeric: tabular-nums; margin: 0 2px; }
+#veh .odo .plate {
+    float: right;
+    color: #b98cff;
+    letter-spacing: 1px;
+}

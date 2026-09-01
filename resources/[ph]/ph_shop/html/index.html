@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="wrap" class="hidden">
+        <div class="win">
+            <div class="head">
+                <div class="ttl">
+                    <svg viewBox="0 0 24 24" class="ic"><path d="M6 7h12l1 13H5L6 7zm3 0V6a3 3 0 0 1 6 0v1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Premium Points Shop</span>
+                </div>
+                <div class="right">
+                    <span id="pp" class="pill">0 PP</span>
+                    <button id="close" class="x">&times;</button>
+                </div>
+            </div>
+
+            <div id="list" class="body"></div>
+
+            <div class="foot"><span><b>Esc</b> close</span><span class="muted">Prices are in Premium Points</span></div>
+        </div>
+
+        <!-- form overlay (phone / clan) -->
+        <div id="form" class="hidden">
+            <div class="fbox">
+                <div class="fhead"><span id="f-title">Form</span><button id="f-x" class="x">&times;</button></div>
+                <div class="fbody">
+                    <div class="ffield" id="f-row-a">
+                        <label id="f-label-a">Value</label>
+                        <input id="f-a" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="ffield hidden" id="f-row-b">
+                        <label id="f-label-b">Tag</label>
+                        <input id="f-b" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div id="f-err" class="ferr"></div>
+                    <div id="f-cost" class="fcost"></div>
+                </div>
+                <div class="ffoot">
+                    <button id="f-cancel" class="btn">Cancel</button>
+                    <button id="f-ok" class="btn go">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

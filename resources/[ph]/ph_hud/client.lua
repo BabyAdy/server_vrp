@@ -6,6 +6,7 @@ local online = 1
 local needs = { hunger = Config.Needs.start, thirst = Config.Needs.start }
 local paycheckLeft = Config.Paycheck.intervalSec
 local statuses = {}   -- [id] = { label, value, expiresAt (GetGameTimer ms) | nil }
+local vehExtra = nil  -- date suplimentare de vehicul, puse de ph_vehicles (personal/locked/belt/odo)
 
 -- baza de timp real Romania, trimisa de server (epoch UTC + offset ore);
 -- interpolam local intre update-uri. `os` nu exista pe client, deci calculam manual.
@@ -120,6 +121,14 @@ end
 exports('addStatus', addStatus)
 exports('removeStatus', removeStatus)
 
+-- ----------------------------------------------------------
+--  API vehicul (folosit de ph_vehicles) - date pe care HUD-ul nu le poate
+--  citi singur din native: personal / locked / belt / odometer.
+--  Viteza, combustibilul, RPM-ul, treapta si luminile le calculeaza HUD-ul.
+-- ----------------------------------------------------------
+exports('setVehicleInfo', function(t) vehExtra = t or {} end)
+exports('clearVehicleInfo', function() vehExtra = nil end)
+
 RegisterNetEvent('ph_hud:status', function(action, id, label, opts)
     if action == 'add' then addStatus(id, label, opts)
     elseif action == 'remove' then removeStatus(id) end
@@ -142,6 +151,30 @@ CreateThread(function()
             hp = math.floor(math.max(0, rawHp - 100) / (maxHp - 100) * 100 + 0.5)
         end
         local armor = math.floor(GetPedArmour(ped) + 0.5)
+
+        -- ---- speedometer -------------------------------------------------
+        local vp = nil
+        local pv = GetVehiclePedIsIn(ped, false)
+        if pv ~= 0 then
+            local rpm = GetVehicleCurrentRpm(pv)
+            local gear = GetVehicleCurrentGear(pv)
+            local reversing = GetEntitySpeedVector(pv, true).y < -1.0
+            local eng = GetIsVehicleEngineRunning(pv)
+            local _, lightsOn, highBeams = GetVehicleLightsState(pv)
+            vp = {
+                kmh    = math.floor(GetEntitySpeed(pv) * 3.6 + 0.5),
+                rpm    = rpm < 0 and 0.0 or (rpm > 1 and 1.0 or rpm),
+                gear   = reversing and 'R' or (gear <= 0 and 'N' or tostring(gear)),
+                engine = eng == 1 or eng == true,
+                fuel   = math.floor(math.max(0.0, math.min(100.0, GetVehicleFuelLevel(pv))) + 0.5),
+                lights = (highBeams == 1) and 2 or ((lightsOn == 1) and 1 or 0),
+                personal = (vehExtra and vehExtra.personal) or false,
+                locked   = vehExtra and vehExtra.locked,
+                belt     = (vehExtra and vehExtra.belt) or false,
+                odoKm    = vehExtra and vehExtra.odoKm or nil,
+                plate    = vehExtra and vehExtra.plate or nil,
+            }
+        end
 
         local rt = romaniaNow()
         local timeStr, dateStr = '--:--', '...'
@@ -178,6 +211,7 @@ CreateThread(function()
             talking = NetworkIsPlayerTalking(PlayerId()) == 1 or NetworkIsPlayerTalking(PlayerId()) == true,
             paycheck = fmtClock(paycheckLeft),
             statuses = list,
+            veh = vp,
         })
 
         ::continue::

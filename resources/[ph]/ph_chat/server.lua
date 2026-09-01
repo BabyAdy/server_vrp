@@ -201,6 +201,15 @@ RegisterNetEvent('ph_chat:submit', function(raw)
 
     local name = GetPlayerName(src) or ('Player_' .. src)
     local id = sqlId(src)
+
+    -- tag de clan (stilul ales cu /clantag) - optional, doar daca ph_clans ruleaza
+    if id and GetResourceState('ph_clans') == 'started' then
+        pcall(function()
+            local decorated = exports['ph_clans']:DecorateName(id, name)
+            if type(decorated) == 'string' and decorated ~= '' then name = decorated end
+        end)
+    end
+
     local prefix = (Config.ShowIdInChat and id) and ('[%s] %s'):format(id, name) or name
 
     TriggerClientEvent('ph_chat:receive', -1, {
