@@ -121,7 +121,7 @@ Config.HotbarBase  = 6001   -- fast slot #i => slot numeric 6000 + i
 -- pentru  mp_f_freemode_01 . Pune aici acelasi index cu cel din numele fisierelor:
 --   stream/mp_f_freemode_01^jbib_<N>_u.ydd  +  ^jbib_diff_<N>_[a|b|c]_uni.ytd
 -- Indexul e folosit DIRECT la echipare si la /tryon; nu se citeste nicio colectie.
-local STAFF_F_JBIB_DRAWABLE = 15   -- <<< pune indexul vanilla jbib pe care il inlocuiesti
+local STAFF_F_JBIB_DRAWABLE = 3   -- <<< pune indexul vanilla jbib pe care il inlocuiesti
 
 Config.Items = {
     -- consumabile / misc
