@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Purple Havoc - addon clothing collection: mp_f_freemode_01_staff
-  Component: JBIB (component 11 / "top") - un singur drawable (index 2) cu 3 texturi.
-  Fisierele: stream/mp_f_freemode_01_staff^jbib_002_u.ydd
-             stream/mp_f_freemode_01_staff^jbib_diff_002_[a|b|c]_uni.ytd
-  Daca hainele nu apar dupa `restart ph_clothing`, formatul acestui .meta poate
-  necesita ajustari in functie de cum au fost exportate fisierele (create_ap / OpenIV).
-  Indexul real al drawable-ului se afla in joc cu /tryon (vezi fxmanifest).
+  Component: JBIB (component 11 / "top") - un singur drawable (index 0 in colectie),
+  cu 3 texturi (a=0 Owner, b=1 Developer, c=2 Manager).
+
+  Fisiere (stream/):
+    mp_f_freemode_01_staff^jbib_000_u.ydd
+    mp_f_freemode_01_staff^jbib_diff_000_a_uni.ytd
+    mp_f_freemode_01_staff^jbib_diff_000_b_uni.ytd
+    mp_f_freemode_01_staff^jbib_diff_000_c_uni.ytd
+
+  Indexul GLOBAL al drawable-ului = (nr. drawable-uri vanilla pentru component 11).
+  Il afli in joc, dupa `restart ph_clothing` + reconectare:
+    /tryon info               -> vezi "component 11 : <N> variations"
+    /tryon component 11 <N-1> 0   (apoi 1, 2 pentru celelalte texturi)
+  Pui <N-1> in ph_inventory/config.lua -> STAFF_F_JBIB_DRAWABLE.
 -->
 <SShopPedApparel>
   <pedName>mp_f_freemode_01</pedName>
@@ -20,7 +28,7 @@
     <Item>
       <enabled value="true" />
       <eCompType>PV_COMP_JBIB</eCompType>
-      <index value="2" />
+      <index value="0" />
       <flags value="0" />
       <locate>Chest</locate>
       <uniqueMatchId value="0" />

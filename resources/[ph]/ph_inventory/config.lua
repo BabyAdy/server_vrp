@@ -117,12 +117,12 @@ Config.HotbarBase  = 6001   -- fast slot #i => slot numeric 6000 + i
 -- ==========================================================
 
 -- Addon clothing "mp_f_freemode_01_staff" (jbib / slot 'jacket' = component 11).
--- Streamat de [stream]/ph_clothing.  Jocul adauga drawable-ul dupa cele vanilla,
--- deci indexul REAL nu e cunoscut pana nu incarci pack-ul.  Afla-l in joc:
---   /tryon info                -> cate variatii are component 11
---   /tryon component 11 <N>    -> incearca pana apare hanoracul
--- apoi pune <N> aici (o singura valoare pentru toate cele 3 texturi):
-local STAFF_F_JBIB_DRAWABLE = 222   -- <<< PLACEHOLDER - inlocuieste dupa /tryon
+-- Streamat de [stream]/ph_clothing.  Hainele ADDON sunt intotdeauna DUPA cele vanilla,
+-- deci 'last' = ultimul drawable = hanoracul nostru (rezolvat pe client la echipare).
+--   'last'   -> ultimul drawable pentru component 11
+--   'last-1' -> penultimul, etc.
+--   sau un numar fix, dupa ce afli indexul cu  /tryon info  +  /tryon component 11 <N>
+local STAFF_F_JBIB_DRAWABLE = 'last'
 
 Config.Items = {
     -- consumabile / misc

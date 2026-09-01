@@ -123,6 +123,20 @@ local function captureBaseAppearance()
     end
 end
 
+--- `drawable` poate fi un numar SAU un string:
+---   'last'    -> ultimul drawable (util pt haine ADDON: intotdeauna dupa cele vanilla)
+---   'last-N'  -> al N-lea inainte de ultimul
+local function resolveDrawable(v, maxDraw)
+    if type(v) == 'number' then return math.floor(v) end
+    if type(v) ~= 'string' then return nil end
+    local s = v:lower():gsub('%s', '')
+    if s == 'last' then return maxDraw - 1 end
+    local n = s:match('^last%-(%d+)$')
+    if n then return maxDraw - 1 - tonumber(n) end
+    local num = tonumber(s)
+    return num and math.floor(num) or nil
+end
+
 local function applyEquipment(map)
     equipment = map or {}
     local ped = PlayerPedId()
@@ -138,15 +152,19 @@ local function applyEquipment(map)
         local def = worn and Config.Items[worn.name]
 
         if cfg.kind == 'component' then
-            if def and def.drawable then
+            if def and def.drawable ~= nil then
                 -- echipat: pune drawable-ul hainei (daca e valid pentru ped-ul curent)
                 local maxDraw = GetNumberOfPedDrawableVariations(ped, cfg.id)
-                local dr = math.floor(def.drawable)
-                if dr >= 0 and dr < maxDraw then
+                local dr = resolveDrawable(def.drawable, maxDraw)
+                if dr and dr >= 0 and dr < maxDraw then
                     local maxTex = GetNumberOfPedTextureVariations(ped, cfg.id, dr)
                     local tx = math.floor(def.texture or 0)
                     if tx < 0 or tx >= maxTex then tx = 0 end
                     SetPedComponentVariation(ped, cfg.id, dr, tx, 0)
+                else
+                    -- drawable invalid pt ped-ul curent (ex: haina F pe barbat) -> ramai la baza
+                    local b = baseComp[cfg.id]
+                    SetPedComponentVariation(ped, cfg.id, b and b.d or 0, b and b.t or 0, 0)
                 end
             else
                 -- dezechipat: revino la aspectul de baza (sau 0/0 daca nu l-am putut capta)
@@ -155,10 +173,10 @@ local function applyEquipment(map)
             end
         else
             -- props (sapca, ochelari, ...): se sterg oricum la dezechipare
-            if def and def.drawable then
+            if def and def.drawable ~= nil then
                 local maxDraw = GetNumberOfPedPropDrawableVariations(ped, cfg.id)
-                local dr = math.floor(def.drawable)
-                if dr >= 0 and dr < maxDraw then
+                local dr = resolveDrawable(def.drawable, maxDraw)
+                if dr and dr >= 0 and dr < maxDraw then
                     SetPedPropIndex(ped, cfg.id, dr, math.floor(def.texture or 0), true)
                 else
                     ClearPedProp(ped, cfg.id)

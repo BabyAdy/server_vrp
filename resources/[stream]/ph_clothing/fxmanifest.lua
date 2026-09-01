@@ -32,16 +32,17 @@ server_script 'commands.lua'
 --  ADDON CLOTHING (drawable-uri NOI, non-distructiv)
 --
 --  Colectie:  mp_f_freemode_01_staff  (jbib / component 11 = top)
---  Fisiere in stream/ :
---    mp_f_freemode_01_staff^jbib_002_u.ydd            (model)
---    mp_f_freemode_01_staff^jbib_diff_002_a_uni.ytd   (textura 0 - Owner)
---    mp_f_freemode_01_staff^jbib_diff_002_b_uni.ytd   (textura 1 - Developer)
---    mp_f_freemode_01_staff^jbib_diff_002_c_uni.ytd   (textura 2 - Manager)
+--  Fisiere in stream/  (indexate din 000, contiguu):
+--    mp_f_freemode_01_staff^jbib_000_u.ydd            (model)
+--    mp_f_freemode_01_staff^jbib_diff_000_a_uni.ytd   (textura 0 - Owner)
+--    mp_f_freemode_01_staff^jbib_diff_000_b_uni.ytd   (textura 1 - Developer)
+--    mp_f_freemode_01_staff^jbib_diff_000_c_uni.ytd   (textura 2 - Manager)
 --
---  Jocul adauga drawable-ul dupa cele vanilla -> indexul REAL il afli in joc cu
---    /tryon info                (numarul de variatii component 11)
---    /tryon component 11 <N>    (cauta pana apare hanoracul)
---  apoi pui <N> in  ph_inventory/config.lua  (STAFF_F_JBIB_DRAWABLE).
+--  Jocul adauga drawable-ul DUPA cele vanilla -> indexul REAL il afli in joc,
+--  dupa `restart ph_clothing` + RECONECTARE:
+--    /tryon info                -> "component 11 : <N> variations"
+--    /tryon component 11 <N-1>  -> hanoracul (0/1/2 = texturi)
+--  apoi pui <N-1> in  ph_inventory/config.lua  (STAFF_F_JBIB_DRAWABLE).
 --
 --  Pentru fiecare colectie noua: adaugi un .meta si inca o linie data_file.
 -- ==========================================================
