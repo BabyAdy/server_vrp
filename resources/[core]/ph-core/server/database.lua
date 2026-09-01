@@ -65,6 +65,52 @@ CreateThread(function()
             MySQL.query.await("ALTER TABLE `users` ADD COLUMN `staff` VARCHAR(24) NOT NULL DEFAULT '' AFTER `license`")
             print("^5[ph-core]^7 Migratie: adaugata coloana `users.staff`.")
         end
+
+        -- /stats: warn-uri (toate /3) + apartenenta la clan + tabelul `clans`
+        local okStats = pcall(function()
+            MySQL.query.await([[
+                ALTER TABLE `users`
+                  ADD COLUMN IF NOT EXISTS `warns`        TINYINT      NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `staff_warns`  TINYINT      NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `leader_warns` TINYINT      NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `clan`         INT UNSIGNED NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `clan_rank`    TINYINT      NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `clan_warns`   TINYINT      NOT NULL DEFAULT 0,
+                  ADD COLUMN IF NOT EXISTS `clan_join`    DATETIME     NULL DEFAULT NULL
+            ]])
+        end)
+        if not okStats then
+            for _, col in ipairs({
+                "`warns` TINYINT NOT NULL DEFAULT 0",
+                "`staff_warns` TINYINT NOT NULL DEFAULT 0",
+                "`leader_warns` TINYINT NOT NULL DEFAULT 0",
+                "`clan` INT UNSIGNED NOT NULL DEFAULT 0",
+                "`clan_rank` TINYINT NOT NULL DEFAULT 0",
+                "`clan_warns` TINYINT NOT NULL DEFAULT 0",
+                "`clan_join` DATETIME NULL DEFAULT NULL",
+            }) do
+                local name = col:match('`([%w_]+)`')
+                local has = MySQL.scalar.await([[
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = ?]], { name })
+                if (tonumber(has) or 0) == 0 then
+                    pcall(function() MySQL.query.await(('ALTER TABLE `users` ADD COLUMN %s'):format(col)) end)
+                end
+            end
+        end
+
+        MySQL.query.await([[
+            CREATE TABLE IF NOT EXISTS `clans` (
+              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `c_name` VARCHAR(64) NOT NULL,
+              `c_short` VARCHAR(12) NOT NULL DEFAULT '',
+              `ranks` LONGTEXT NOT NULL,
+              `leader` INT UNSIGNED NULL DEFAULT NULL,
+              `active` TINYINT(1) NOT NULL DEFAULT 1,
+              `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`), UNIQUE KEY `uq_clans_name` (`c_name`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ]])
     end)
 
     if not ok then

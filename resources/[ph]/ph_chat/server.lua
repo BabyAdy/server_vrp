@@ -93,6 +93,29 @@ local function clampLines(n)
     return n
 end
 
+local function clampScale(n)
+    n = math.floor(tonumber(n) or Config.ScaleDefault)
+    if n < Config.ScaleMin then n = Config.ScaleMin end
+    if n > Config.ScaleMax then n = Config.ScaleMax end
+    return n
+end
+
+--- payload standard pentru evenimentul ph_chat:options
+local function optionsPayload(src, uid, st)
+    return {
+        lines      = st.lines,
+        pcHidden   = st.pcHidden,
+        scale      = st.scale,
+        canPC      = isStaff(src) or hasSub(uid),
+        linesMin   = Config.LinesMin,
+        linesMax   = Config.LinesMax,
+        scaleMin   = Config.ScaleMin,
+        scaleMax   = Config.ScaleMax,
+        scaleStep  = Config.ScaleStep,
+        scrollback = Config.ScrollbackLines,
+    }
+end
+
 CreateThread(function()
     while GetResourceState('oxmysql') ~= 'started' do Wait(200) end
     while GetResourceState(PH) ~= 'started' do Wait(200) end
@@ -101,41 +124,40 @@ CreateThread(function()
         MySQL.query.await([[
             ALTER TABLE `users`
               ADD COLUMN IF NOT EXISTS `chat_lines` SMALLINT   NOT NULL DEFAULT 10,
-              ADD COLUMN IF NOT EXISTS `pc_hidden`  TINYINT(1)  NOT NULL DEFAULT 0
+              ADD COLUMN IF NOT EXISTS `pc_hidden`  TINYINT(1)  NOT NULL DEFAULT 0,
+              ADD COLUMN IF NOT EXISTS `chat_scale` SMALLINT   NOT NULL DEFAULT 100
         ]])
     end)
     if not ok then
-        pcall(function()
-            local has = MySQL.scalar.await([[
-                SELECT COUNT(*) FROM information_schema.columns
-                WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'chat_lines'
-            ]])
-            if (tonumber(has) or 0) == 0 then
-                MySQL.query.await("ALTER TABLE `users` ADD COLUMN `chat_lines` SMALLINT NOT NULL DEFAULT 10")
-                MySQL.query.await("ALTER TABLE `users` ADD COLUMN `pc_hidden` TINYINT(1) NOT NULL DEFAULT 0")
-            end
-        end)
+        for _, col in ipairs({
+            { 'chat_lines', "SMALLINT NOT NULL DEFAULT 10" },
+            { 'pc_hidden',  "TINYINT(1) NOT NULL DEFAULT 0" },
+            { 'chat_scale', "SMALLINT NOT NULL DEFAULT 100" },
+        }) do
+            pcall(function()
+                local has = MySQL.scalar.await([[
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = ?]], { col[1] })
+                if (tonumber(has) or 0) == 0 then
+                    MySQL.query.await(('ALTER TABLE `users` ADD COLUMN `%s` %s'):format(col[1], col[2]))
+                end
+            end)
+        end
     end
 end)
 
 local function loadSettings(src, uid)
     local row
     pcall(function()
-        row = MySQL.single.await('SELECT chat_lines, pc_hidden FROM users WHERE id = ?', { uid })
+        row = MySQL.single.await('SELECT chat_lines, pc_hidden, chat_scale FROM users WHERE id = ?', { uid })
     end)
     local st = {
         lines    = clampLines(row and row.chat_lines),
         pcHidden = (row and tonumber(row.pc_hidden) or 0) ~= 0,
+        scale    = clampScale(row and row.chat_scale),
     }
     SETTINGS[uid] = st
-    TriggerClientEvent('ph_chat:options', src, {
-        lines      = st.lines,
-        pcHidden   = st.pcHidden,
-        canPC      = isStaff(src) or hasSub(uid),
-        linesMin   = Config.LinesMin,
-        linesMax   = Config.LinesMax,
-        scrollback = Config.ScrollbackLines,
-    })
+    TriggerClientEvent('ph_chat:options', src, optionsPayload(src, uid, st))
 end
 
 --- re-trimite optiunile (recalculeaza canPC) cand se schimba abonamentul
@@ -143,14 +165,7 @@ AddEventHandler('ph_subscriptions:bonusChanged', function(userId)
     local s = srcOf(userId)
     local st = s and SETTINGS[userId]
     if not s or not st then return end
-    TriggerClientEvent('ph_chat:options', s, {
-        lines      = st.lines,
-        pcHidden   = st.pcHidden,
-        canPC      = isStaff(s) or hasSub(userId),
-        linesMin   = Config.LinesMin,
-        linesMax   = Config.LinesMax,
-        scrollback = Config.ScrollbackLines,
-    })
+    TriggerClientEvent('ph_chat:options', s, optionsPayload(s, userId, st))
 end)
 
 RegisterNetEvent('ph_chat:requestOptions', function()
@@ -164,12 +179,14 @@ RegisterNetEvent('ph_chat:setOption', function(opt)
     local uid = sqlId(src)
     if not uid then return end
     opt = opt or {}
-    local st = SETTINGS[uid] or { lines = Config.VisibleLines, pcHidden = false }
+    local st = SETTINGS[uid] or { lines = Config.VisibleLines, pcHidden = false, scale = Config.ScaleDefault }
     if opt.lines ~= nil then st.lines = clampLines(opt.lines) end
     if opt.pcHidden ~= nil then st.pcHidden = opt.pcHidden == true end
+    if opt.scale ~= nil then st.scale = clampScale(opt.scale) end
+    st.scale = st.scale or Config.ScaleDefault
     SETTINGS[uid] = st
-    MySQL.update('UPDATE users SET chat_lines = ?, pc_hidden = ? WHERE id = ?',
-        { st.lines, st.pcHidden and 1 or 0, uid })
+    MySQL.update('UPDATE users SET chat_lines = ?, pc_hidden = ?, chat_scale = ? WHERE id = ?',
+        { st.lines, st.pcHidden and 1 or 0, st.scale, uid })
 end)
 
 -- ----------------------------------------------------------
@@ -199,69 +216,19 @@ RegisterNetEvent('ph_chat:submit', function(raw)
 end)
 
 -- ----------------------------------------------------------
---  Premium Chat   /pc [mesaj]
+--  Comenzile / (/pc) sunt in  commands.lua .
+--  Helperele de care au nevoie se dau prin tabelul global CHATENV.
 -- ----------------------------------------------------------
-RegisterCommand('pc', function(src, args)
-    if src == 0 then return end
-    local msg = clean(table.concat(args, ' '))
-    local uid = sqlId(src)
-    local staff = isStaff(src)
-
-    local tier
-    if not staff then
-        pcall(function() tier = exports['ph_subscriptions']:GetActiveTier(uid) end)
-    end
-    if not staff and not tier then
-        exports[PH]:CmdSubError(src)
-        return
-    end
-    if msg == '' then
-        exports[PH]:CmdSyntax(src, '/pc [message]')
-        return
-    end
-
-    -- eticheta + culoarea ei
-    local tagText, tagColor
-    if staff then
-        local pub = exports[PH]:GetPublicPlayer(src)
-        tagText  = (pub and pub.staffLabel) or 'Staff'
-        tagColor = (pub and pub.staffColor) or '#37ff00'
-    else
-        local ti = exports['ph_subscriptions']:GetTierInfo(tier) or {}
-        tagText  = ti.label or tier
-        tagColor = ti.color or '#8c00ff'
-    end
-
-    local name = GetPlayerName(src) or ('Player_' .. src)
-    local body = Config.PremiumChat.TextColor or '#8c00ff'
-    local payload = {
-        stamp = roStamp(),
-        segments = {
-            { t = (Config.PremiumChat.Prefix or '(/pc)') .. ' ', c = body },
-            { t = ('[%s] '):format(tagText), c = tagColor },
-            { t = name .. ': ', c = body },
-            { t = msg, c = body },
-        },
-    }
-
-    -- destinatari: eligibili (staff >= min SAU abonament activ) care nu au ascuns canalul.
-    -- expeditorul primeste mesajul indiferent de setare.
-    local sent = {}
-    for _, tuid in ipairs(exports[PH]:GetOnlineUserIds() or {}) do
-        local tsrc = srcOf(tuid)
-        if tsrc then
-            local eligible = isStaff(tsrc) or hasSub(tuid)
-            local hidden = SETTINGS[tuid] and SETTINGS[tuid].pcHidden
-            if tuid == uid or (eligible and not hidden) then
-                TriggerClientEvent('ph_chat:receive', tsrc, payload)
-                sent[tsrc] = true
-            end
-        end
-    end
-    if not sent[src] then TriggerClientEvent('ph_chat:receive', src, payload) end
-
-    print(('[pc] %s: %s'):format(name, msg))
-end, false)
+CHATENV = {
+    PH       = PH,
+    clean    = clean,
+    sqlId    = sqlId,
+    srcOf    = srcOf,
+    isStaff  = isStaff,
+    hasSub   = hasSub,
+    roStamp  = roStamp,
+    settings = function() return SETTINGS end,
+}
 
 -- ----------------------------------------------------------
 --  Conectare: anunt public + mesaje private de bun venit

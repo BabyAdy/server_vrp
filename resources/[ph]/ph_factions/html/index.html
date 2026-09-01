@@ -1,85 +1,146 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <!-- ============ MENIU FACTIUNE ============ -->
+    <!-- ============ FACTION MENU  (/factionmenu) ============ -->
     <div id="menu" class="hidden">
         <div class="win">
             <div class="head">
                 <div>
-                    <span id="f-name">Faction</span>
+                    <span id="f-name">Faction Menu</span>
                     <span id="f-role" class="pill"></span>
                 </div>
                 <button id="close" class="x">&times;</button>
             </div>
 
-            <div class="tabs" id="tabs"></div>
+            <div class="tabs">
+                <button data-mtab="members" class="active">Members</button>
+                <button data-mtab="logs">Logs</button>
+            </div>
 
             <div class="body">
                 <!-- Members -->
-                <section class="tab" data-tab="members">
+                <section class="tab active" data-mtab="members">
                     <div class="row-top">
                         <input id="mem-search" placeholder="Search member..." />
-                        <button id="recruit" class="btn go">Recruit nearest</button>
+                    </div>
+                    <div class="mhead">
+                        <span class="c-av"></span>
+                        <span class="c-nm">Username</span>
+                        <span class="c-dy">Days</span>
+                        <span class="c-rk">Rank</span>
+                        <span class="c-bd">Badge</span>
+                        <span class="grow"></span>
+                        <span class="c-ac"></span>
                     </div>
                     <div id="members"></div>
                 </section>
 
-                <!-- Vehicles -->
-                <section class="tab" data-tab="vehicles">
-                    <div class="veh-cats">
-                        <button class="vcat active" data-cat="car">Cars</button>
-                        <button class="vcat" data-cat="heli">Helis</button>
-                        <button class="vcat" data-cat="boat">Boats</button>
+                <!-- Logs -->
+                <section class="tab" data-mtab="logs">
+                    <div class="lhead">
+                        <span class="l-tm">Time</span>
+                        <span class="l-ac">Actor</span>
+                        <span class="l-at">Action</span>
+                        <span class="l-tg">Target</span>
+                        <span class="l-dt">Detail</span>
                     </div>
-                    <div id="veh-add" class="row-top hidden">
-                        <input id="va-model" placeholder="model (spawn name)" />
-                        <input id="va-label" placeholder="display name" />
-                        <input id="va-rank" type="number" min="1" max="7" value="1" title="minimum rank" />
-                        <button id="va-go" class="btn go">Add</button>
+                    <div id="logs"></div>
+                </section>
+            </div>
+
+            <div class="foot"><span><b>Esc</b> close</span></div>
+        </div>
+    </div>
+
+    <!-- ============ DEV FACTION MENU  (/devfactionmenu) ============ -->
+    <div id="devmenu" class="hidden">
+        <div class="win">
+            <div class="head">
+                <div><span>Dev Faction Menu</span><span class="pill">Developer</span></div>
+                <button id="dev-close" class="x">&times;</button>
+            </div>
+
+            <div class="tabs">
+                <button data-dtab="create" class="active">Create Faction</button>
+                <button data-dtab="edit">Edit Faction</button>
+            </div>
+
+            <div class="body">
+                <!-- Create Faction -->
+                <section class="tab active" data-dtab="create">
+                    <div class="card">
+                        <h4>Create Faction</h4>
+                        <label class="fld">Name<input id="cf-name" maxlength="64" placeholder="e.g. Los Santos Police Department" /></label>
+                        <label class="fld">Short Name<input id="cf-short" maxlength="12" placeholder="e.g. LSPD (auto if empty)" /></label>
+                        <button id="cf-go" class="btn go">Create</button>
                     </div>
-                    <div id="vehicles"></div>
                 </section>
 
-                <!-- Ranks -->
-                <section class="tab" data-tab="ranks">
-                    <p class="muted">Names of the 7 ranks (1 = lowest, 7 = Leader). Only the leader can save.</p>
-                    <div id="ranks"></div>
-                    <button id="ranks-save" class="btn go">Save names</button>
-                </section>
+                <!-- Edit Faction -->
+                <section class="tab" data-dtab="edit">
+                    <select id="ef-fac"></select>
+                    <div id="ef-body" class="hidden">
+                        <div class="card">
+                            <h4>Add Vehicle</h4>
+                            <div class="veh-cats">
+                                <button class="vcat active" data-cat="car">Car</button>
+                                <button class="vcat" data-cat="heli">Heli</button>
+                                <button class="vcat" data-cat="boat">Boat</button>
+                            </div>
+                            <div class="row-top">
+                                <input id="av-model" placeholder="Model Name (spawn name)" />
+                                <input id="av-label" placeholder="Display Name" />
+                                <input id="av-rank" type="number" min="1" max="7" value="1" title="min rank" />
+                                <button id="av-go" class="btn go">Add</button>
+                            </div>
+                        </div>
 
-                <!-- Developer -->
-                <section class="tab" data-tab="dev">
-                    <div class="card">
-                        <h4>Create faction</h4>
-                        <div class="row-top">
-                            <input id="dev-name" placeholder="Faction name" />
-                            <button id="dev-create" class="btn go">Create</button>
+                        <div class="card">
+                            <h4>Remove Faction Vehicle</h4>
+                            <div id="ef-vehicles"></div>
                         </div>
-                    </div>
-                    <div class="card">
-                        <h4>Configure the selected faction</h4>
-                        <select id="dev-fac"></select>
-                        <div class="dev-points">
-                            <button class="btn" data-point="hqEnter">Set HQ Enter (my position)</button>
-                            <button class="btn" data-point="hqExit">Set HQ Exit (my position)</button>
-                            <button class="btn" data-point="vgarage">Set Car Garage</button>
-                            <button class="btn" data-point="hgarage">Set Helipad</button>
-                            <button class="btn" data-point="bgarage">Set Boat Dock</button>
+
+                        <div class="card">
+                            <h4>HQ &amp; Garages <span class="muted">— set at your current position</span></h4>
+                            <div class="dev-points">
+                                <button class="btn" data-point="hqEnter">Set HQ Exterior</button>
+                                <button class="btn" data-point="hqExit">Set HQ Interior (+ vw)</button>
+                                <button class="btn" data-point="vgarage">Create Vehicle Garage</button>
+                                <button class="btn" data-point="hgarage">Create Heli Garage</button>
+                                <button class="btn" data-point="bgarage">Create Boat Garage</button>
+                            </div>
+                            <div id="ef-points" class="muted"></div>
                         </div>
-                        <div class="row-top">
-                            <input id="dev-leader" type="number" placeholder="leader sqlId" />
-                            <button id="dev-setleader" class="btn">Set Leader</button>
-                            <input id="dev-manager" type="number" placeholder="sqlId manager" />
-                            <button id="dev-setmanager" class="btn">Set Manager</button>
+
+                        <div class="card">
+                            <h4>Ranks</h4>
+                            <div id="ef-ranks"></div>
+                            <button id="ef-ranks-save" class="btn go">Save rank names</button>
                         </div>
-                        <div class="row-top">
-                            <input id="dev-seedrank" type="number" min="1" max="7" value="3" title="min rank" />
-                            <button id="dev-seed" class="btn">Seed vanilla vehicles</button>
-                            <button id="dev-delete" class="btn danger">Delete faction</button>
+
+                        <div class="card">
+                            <h4>Leadership</h4>
+                            <div class="row-top">
+                                <input id="ef-leader" type="number" placeholder="leader sqlId" />
+                                <button id="ef-setleader" class="btn">Set Leader</button>
+                            </div>
+                            <div class="row-top">
+                                <input id="ef-manager" type="number" placeholder="manager sqlId" />
+                                <button id="ef-setmanager" class="btn">Set Manager</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h4>Danger zone</h4>
+                            <div class="row-top">
+                                <input id="ef-seedrank" type="number" min="1" max="7" value="3" title="min rank" />
+                                <button id="ef-seed" class="btn">Seed vanilla vehicles</button>
+                                <button id="ef-delete" class="btn danger">Delete faction</button>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -89,7 +150,7 @@
         </div>
     </div>
 
-    <!-- ============ GARAJ ============ -->
+    <!-- ============ GARAGE ============ -->
     <div id="garage" class="hidden">
         <div class="win small">
             <div class="head">

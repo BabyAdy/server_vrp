@@ -9,5 +9,6 @@ version '0.1.0'
 
 shared_scripts {
     'data/vanilla.lua',
+    'data/custom.lua',
     'shared.lua',
 }

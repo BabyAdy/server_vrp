@@ -14,4 +14,5 @@ shared_script 'config.lua'
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server.lua',
+    'commands.lua',   -- toate comenzile / (dupa server.lua: foloseste SUBENV)
 }

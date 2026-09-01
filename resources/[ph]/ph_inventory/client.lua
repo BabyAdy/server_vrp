@@ -181,6 +181,13 @@ AddEventHandler('ph-core:client:playerLoaded', function()
     SetTimeout(1500, function() applyEquipment(equipment) end)
 end)
 
+-- ph_appearance a re-aplicat aspectul + baza "dezbracat" -> re-capteaza si re-echipeaza
+AddEventHandler('ph_appearance:cl:reapplyEquipment', function()
+    baseComp = {}
+    baseModel = nil
+    SetTimeout(80, function() applyEquipment(equipment) end)
+end)
+
 -- ----------------------------------------------------------
 --  Arme: echipare + durabilitate/gloante + atasamente
 -- ----------------------------------------------------------

@@ -10,7 +10,10 @@ version '0.1.0'
 dependency 'ph-core'
 
 shared_script 'config.lua'
-client_script 'client.lua'
+client_scripts {
+    'client.lua',
+    'commands.lua',   -- /hudtest (dupa client.lua: foloseste exportul addStatus)
+}
 server_script 'server.lua'
 
 ui_page 'html/index.html'

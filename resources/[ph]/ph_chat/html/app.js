@@ -18,6 +18,7 @@ const sugEl = document.getElementById('suggestions');
 const optBtn = document.getElementById('opt-btn');
 const optPanel = document.getElementById('options');
 const optLinesVal = document.getElementById('opt-lines-val');
+const optScaleVal = document.getElementById('opt-scale-val');
 const optPcRow = document.getElementById('opt-pc-row');
 const optPc = document.getElementById('opt-pc');
 
@@ -27,6 +28,10 @@ const state = {
     lines: 10,
     linesMin: 5,
     linesMax: 20,
+    scale: 100,
+    scaleMin: 70,
+    scaleMax: 140,
+    scaleStep: 10,
     canPC: false,
     pcHidden: false,
     suggestions: [],
@@ -124,6 +129,13 @@ function applyLines(n) {
     if (!state.open) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function applyScale(pct) {
+    pct = Math.max(state.scaleMin, Math.min(state.scaleMax, Math.round(pct / 5) * 5));
+    state.scale = pct;
+    optScaleVal.textContent = pct + '%';
+    document.documentElement.style.setProperty('--chat-scale', String(pct / 100));
+}
+
 function renderPcToggle() {
     optPcRow.classList.toggle('hidden', !state.canPC);
     optPc.setAttribute('aria-checked', String(!state.pcHidden));
@@ -146,6 +158,14 @@ document.getElementById('opt-lines-dec').addEventListener('click', () => {
 document.getElementById('opt-lines-inc').addEventListener('click', () => {
     applyLines(state.lines + 1);
     saveOptions({ lines: state.lines });
+});
+document.getElementById('opt-scale-dec').addEventListener('click', () => {
+    applyScale(state.scale - state.scaleStep);
+    saveOptions({ scale: state.scale });
+});
+document.getElementById('opt-scale-inc').addEventListener('click', () => {
+    applyScale(state.scale + state.scaleStep);
+    saveOptions({ scale: state.scale });
 });
 optPc.addEventListener('click', () => {
     state.pcHidden = !state.pcHidden;
@@ -299,10 +319,14 @@ window.addEventListener('message', (ev) => {
             const o = d.data || {};
             if (o.linesMin != null) state.linesMin = o.linesMin;
             if (o.linesMax != null) state.linesMax = o.linesMax;
+            if (o.scaleMin != null) state.scaleMin = o.scaleMin;
+            if (o.scaleMax != null) state.scaleMax = o.scaleMax;
+            if (o.scaleStep != null) state.scaleStep = o.scaleStep;
             if (o.scrollback != null) state.cfg.scrollback = o.scrollback;
             state.canPC = !!o.canPC;
             state.pcHidden = !!o.pcHidden;
             if (o.lines != null) applyLines(o.lines);
+            if (o.scale != null) applyScale(o.scale);
             renderPcToggle();
             break;
         }

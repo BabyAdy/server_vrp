@@ -26,6 +26,11 @@ RegisterNetEvent('ph-core:character:spawn', function(char)
     end)
 end)
 
+-- ph_appearance preia ecranul: ascunde NUI-ul de auth (creatorul isi pune propriul focus)
+RegisterNetEvent('ph-core:hideAuthUI', function()
+    SendNUIMessage({ action = 'hide' })
+end)
+
 -- ----------------------------------------------------------
 --  Spawn efectiv al personajului
 -- ----------------------------------------------------------

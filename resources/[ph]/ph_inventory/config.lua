@@ -115,6 +115,15 @@ Config.HotbarBase  = 6001   -- fast slot #i => slot numeric 6000 + i
 --  ITEME  (exemple - le inlocuiesti / adaugi liber)
 --  type: 'item' | 'weapon' | 'ammo' | 'clothing'
 -- ==========================================================
+
+-- Addon clothing "mp_f_freemode_01_staff" (jbib / slot 'jacket' = component 11).
+-- Streamat de [stream]/ph_clothing.  Jocul adauga drawable-ul dupa cele vanilla,
+-- deci indexul REAL nu e cunoscut pana nu incarci pack-ul.  Afla-l in joc:
+--   /tryon info                -> cate variatii are component 11
+--   /tryon component 11 <N>    -> incearca pana apare hanoracul
+-- apoi pune <N> aici (o singura valoare pentru toate cele 3 texturi):
+local STAFF_F_JBIB_DRAWABLE = 222   -- <<< PLACEHOLDER - inlocuieste dupa /tryon
+
 Config.Items = {
     -- consumabile / misc
     water      = { label = 'Sticla de apa', weight = 0.5, stack = 20,  type = 'item', usable = true, effect = 'thirst', value = 25 },
@@ -155,4 +164,11 @@ Config.Items = {
     clothing_pants  = { label = 'Blugi',        weight = 0.6, stack = 1, type = 'clothing', slot = 'pants',  drawable = 10, texture = 0 },
     clothing_shoes  = { label = 'Adidasi albi', weight = 0.5, stack = 1, type = 'clothing', slot = 'shoes',  drawable = 20, texture = 0 },
     clothing_bag    = { label = 'Rucsac',       weight = 1.0, stack = 1, type = 'clothing', slot = 'backpack', drawable = 45, texture = 0 },
+
+    -- Hanorace staff F (addon "mp_f_freemode_01_staff", jbib) - acelasi model, texturi diferite.
+    -- Doar pe personaje FEMEIE (mp_f_freemode_01); pe barbat nu se aplica (index inexistent).
+    -- Iconuri: pui .png in ph_inventory/html/img/ cu numele cheii (ex: staff_f_owner_jacket.png).
+    staff_f_owner_jacket     = { label = 'Staff Jacket F - Owner',     weight = 0.8, stack = 1, type = 'clothing', slot = 'jacket', drawable = STAFF_F_JBIB_DRAWABLE, texture = 0 },
+    staff_f_developer_jacket = { label = 'Staff Jacket F - Developer', weight = 0.8, stack = 1, type = 'clothing', slot = 'jacket', drawable = STAFF_F_JBIB_DRAWABLE, texture = 1 },
+    staff_f_manager_jacket   = { label = 'Staff Jacket F - Manager',   weight = 0.8, stack = 1, type = 'clothing', slot = 'jacket', drawable = STAFF_F_JBIB_DRAWABLE, texture = 2 },
 }

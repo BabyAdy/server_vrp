@@ -156,29 +156,16 @@ exports('Claim', function(userId)
 end)
 
 -- ----------------------------------------------------------
---  Comenzi
+--  Comenzile / (/po, /postoffice) sunt in  commands.lua .
+--  Helperele de care au nevoie se dau prin tabelul global POENV.
 -- ----------------------------------------------------------
-local function doPostoffice(src, args)
-    if src == 0 then print('[ph_postoffice] use this command in-game.') return end
-    local uid = exports[PH]:GetUserId(src)
-    if not uid then return end
-
-    if args[1] == 'list' then
-        local rows = MySQL.query.await(
-            'SELECT name, count, reason, created_at FROM post_office_items WHERE user_id = ? AND claimed_at IS NULL ORDER BY id ASC LIMIT 50',
-            { uid }) or {}
-        if #rows == 0 then return toast(src, 'Post Office is empty.', 'info') end
-        notify(src, ('Post Office (%d package(s)):'):format(#rows), '#b98cff')
-        for _, r in ipairs(rows) do
-            notify(src, (' - %dx %s%s'):format(r.count, itemLabel(r.name), r.reason and (' — ' .. r.reason) or ''), '#cfc9e6')
-        end
-    else
-        claim(uid, src)
-    end
-end
-
-RegisterCommand('postoffice', function(src, args) doPostoffice(src, args) end, false)
-RegisterCommand('po', function(src, args) doPostoffice(src, args) end, false)
+POENV = {
+    PH        = PH,
+    notify    = notify,
+    toast     = toast,
+    itemLabel = itemLabel,
+    claim     = claim,
+}
 
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end

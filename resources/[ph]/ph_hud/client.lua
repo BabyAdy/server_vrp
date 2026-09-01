@@ -220,11 +220,4 @@ CreateThread(function()
     end
 end)
 
--- ----------------------------------------------------------
---  Comanda de test
--- ----------------------------------------------------------
-RegisterCommand('hudtest', function()
-    addStatus('rent', 'RENTED VEHICLE', { durationSec = 3300 })
-    addStatus('hood', 'WEARING HOOD')
-    addStatus('oil', 'OIL EXTRACTION', { durationSec = 6600 })
-end, false)
+-- Comanda de test /hudtest e in  commands.lua .

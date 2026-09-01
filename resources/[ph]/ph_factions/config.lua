@@ -3,10 +3,10 @@ Config = {}
 -- ----------------------------------------------------------
 --  Acces
 -- ----------------------------------------------------------
-Config.DevGrade   = 'developer'   -- grad de staff minim pentru creare / configurare factiuni
-Config.MenuRank   = 6             -- faction_rank minim pentru /factionmenu
-                                  -- (SAU is_tester == 1 SAU is_supervisor == 1 in factiunea proprie)
-Config.RecruitRank = 5            -- rank minim ca sa poti recruta (pe langa tester / supervisor)
+Config.DevGrade   = 'developer'   -- grad de staff minim pentru /devfactionmenu (creare / configurare)
+Config.MenuRank   = 6             -- faction_rank minim pentru /factionmenu (Co-Leader).
+                                  -- tester / supervisor NU mai deschid meniul.
+Config.RecruitRank = 5            -- (rezervat pentru viitorul /invite [sqlId] + accept din panel)
 
 -- ----------------------------------------------------------
 --  Rank-uri (1..7).  Fiecare factiune are 7 rank-uri cu denumiri custom;
@@ -16,6 +16,21 @@ Config.RankCount   = 7
 Config.RankLeader  = 7
 Config.RankCoLeader = 6
 Config.DefaultRanks = { 'Rank 1', 'Rank 2', 'Rank 3', 'Rank 4', 'Rank 5', 'Co-Leader', 'Leader' }
+
+-- ----------------------------------------------------------
+--  Badge-uri afisate in coloana "Badge" din meniul de factiune.
+--  Prioritate (un singur badge / rand): Leader > Co-Leader > Supervisor > Tester.
+--  `icon` = un glyph unicode; `color` = culoarea textului + iconului.
+-- ----------------------------------------------------------
+Config.Badges = {
+    leader     = { label = 'Leader',     color = '#ff4d4d', icon = '♛' },
+    coleader   = { label = 'Co-Leader',  color = '#ffa24d', icon = '♚' },
+    supervisor = { label = 'Supervisor', color = '#4db8ff', icon = '⬡' },
+    tester     = { label = 'Tester',     color = '#8ce07a', icon = '⚙' },
+}
+
+-- cate intrari afisam in tab-ul Logs
+Config.LogLimit = 100
 
 -- ----------------------------------------------------------
 --  Warns

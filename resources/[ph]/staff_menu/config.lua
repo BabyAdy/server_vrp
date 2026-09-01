@@ -89,6 +89,11 @@ Config.Perms = {
     setvw           = 'trialadmin',   -- /setvw <sqlId> <virtualWorld>
     doorinfo        = 'developer',    -- /doorinfo -> afiseaza model + coords ale usii din apropiere
 
+    -- economie (amount negativ = scade, plafonat la 0)
+    givemoney       = 'manager',      -- /givemoney  <sqlId> <amount>
+    givebmoney      = 'manager',      -- /givebmoney <sqlId> <amount>
+    givepp          = 'manager',      -- /givepp     <sqlId> <amount>
+
     -- developer
     set_staff       = 'manager',
     restart_resource = 'developer',

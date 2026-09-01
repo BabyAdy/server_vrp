@@ -23,6 +23,7 @@ server_scripts {
     'server/character.lua',
     'server/public.lua',
     'server/main.lua',
+    'server/commands.lua',   -- toate comenzile / ale ph-core (dupa main/public)
 }
 
 client_scripts {

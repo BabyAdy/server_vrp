@@ -7,6 +7,12 @@ Config.CmdKey  = '/'       -- deschide chat-ul cu "/" pus, pentru comenzi
 Config.VisibleLines     = 10      -- linii vizibile implicit (chat inchis); jucatorul si le regleaza 5..20 din Optiuni
 Config.LinesMin         = 5
 Config.LinesMax         = 20
+
+-- Resize (scala interfetei de chat, %) - reglabil din Optiuni, persistat in users.chat_scale
+Config.ScaleDefault     = 100
+Config.ScaleMin         = 70
+Config.ScaleMax         = 140
+Config.ScaleStep        = 10
 Config.ScrollbackLines  = 50      -- linii suplimentare pastrate deasupra, vizibile prin scroll cand chatul e deschis
 Config.FadeDelay        = 18000   -- ms fara activitate pana se estompeaza (cand e inchis)
 Config.ShowTimestamps   = true    -- prefix [HH:MM] pe fiecare linie (ora din joc)

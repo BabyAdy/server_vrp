@@ -185,6 +185,12 @@ AddEventHandler('onClientResourceStart', function(res)
     TriggerEvent('chat:addSuggestion', '/setvw', 'Move a player to a virtual world', {
         { name = 'sqlId' }, { name = 'virtualWorld', help = '0 = normal' } })
     TriggerEvent('chat:addSuggestion', '/doorinfo', 'Aim at a door to get its model + coords')
+    TriggerEvent('chat:addSuggestion', '/givemoney', 'Give (or -take) cash to a player', {
+        { name = 'sqlId' }, { name = 'amount', help = 'negativ = scade' } })
+    TriggerEvent('chat:addSuggestion', '/givebmoney', 'Give (or -take) bank money to a player', {
+        { name = 'sqlId' }, { name = 'amount', help = 'negativ = scade' } })
+    TriggerEvent('chat:addSuggestion', '/givepp', 'Give (or -take) premium points to a player', {
+        { name = 'sqlId' }, { name = 'amount', help = 'negativ = scade' } })
 end)
 AddEventHandler('ph-core:client:playerLoaded', function()
     TriggerServerEvent('staff_menu:sv:reqNoclip')

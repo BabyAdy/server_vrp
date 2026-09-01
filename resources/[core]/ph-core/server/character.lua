@@ -54,8 +54,51 @@ function PH.Character.Load(src, row)
     PH.Session.Bind(src, row.id, (PH.GetLicense and PH.GetLicense(src)) or '', row.username)
     PH.Log(('Character loaded: %s (id %d) [src %d]'):format(row.username, row.id, src))
 
+    -- personaj fara aspect creat inca -> preda controlul catre ph_appearance (creator).
+    -- ph_appearance:createDone re-declanseaza spawn-ul dupa ce aspectul e salvat.
+    if PH.AwaitAppearance(src, player) then return end
+
     TriggerClientEvent('ph-core:character:spawn', src, player.character)
 end
+
+--- true daca am predat controlul catre creatorul de aspect (deci NU facem spawn acum)
+function PH.AwaitAppearance(src, player)
+    local c = player and player.character
+    if not c then return false end
+    local ap = c.appearance
+    local hasAp = type(ap) == 'string' and ap ~= '' and ap ~= 'null'
+    if hasAp then return false end
+    if GetResourceState('ph_appearance') ~= 'started' then return false end
+
+    player.awaitingAppearance = true
+    TriggerClientEvent('ph-core:hideAuthUI', src)
+    TriggerClientEvent('ph_appearance:cl:startCreator', src, { gender = c.gender or 0 })
+    return true
+end
+
+--- ph_appearance a salvat aspectul unui personaj nou -> continua spawn-ul
+AddEventHandler('ph_appearance:createDone', function(src, encoded, gender)
+    local player = PH.Players[src]
+    if not player or not player.character then return end
+    player.character.appearance = encoded
+    if gender ~= nil then player.character.gender = tonumber(gender) or player.character.gender end
+    player.awaitingAppearance = nil
+    TriggerClientEvent('ph-core:character:spawn', src, player.character)
+end)
+
+--- staff a schimbat aspectul unui jucator online (/editcharacter -> Save) -> sincronizeaza cache-ul
+AddEventHandler('ph_appearance:liveUpdated', function(src, encoded, gender)
+    local player = PH.Players[src]
+    if not player or not player.character then return end
+    player.character.appearance = encoded
+    if gender ~= nil then player.character.gender = tonumber(gender) or player.character.gender end
+end)
+
+--- /resetcharacter: aspectul a fost sters in DB -> nu-l re-scrie la auto-save inainte de re-creare
+AddEventHandler('ph_appearance:resetPending', function(src)
+    local player = PH.Players[src]
+    if player and player.character then player.character.appearance = nil end
+end)
 
 function PH.Character.Save(src)
     local player = PH.Players[src]

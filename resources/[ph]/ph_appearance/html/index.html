@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="root" class="hidden">
+        <!-- transparent area over the ped: drag = rotate, wheel = zoom -->
+        <div id="stage"></div>
+
+        <aside id="panel">
+            <header>
+                <div class="title">
+                    <span id="hd-title">Character Creator</span>
+                    <span id="hd-sub" class="sub"></span>
+                </div>
+                <div class="gender" id="gender">
+                    <button data-g="0" class="active">Male</button>
+                    <button data-g="1">Female</button>
+                </div>
+            </header>
+
+            <div id="tpl-banner" class="banner hidden">
+                <span id="tpl-text">Saved template available.</span>
+                <span class="grow"></span>
+                <button id="tpl-load" class="btn sm">Load template</button>
+                <button id="tpl-skip" class="btn sm ghost">Start fresh</button>
+            </div>
+
+            <nav id="tabs"></nav>
+            <div id="content"></div>
+
+            <div class="cam-row">
+                <span class="lbl">View</span>
+                <button data-focus="head" class="btn sm">Head</button>
+                <button data-focus="body" class="btn sm">Body</button>
+                <button data-focus="legs" class="btn sm">Legs</button>
+                <button data-focus="reset" class="btn sm">Reset</button>
+            </div>
+
+            <footer id="foot"></footer>
+        </aside>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -73,18 +73,14 @@ RegisterNetEvent('ph_factions:cl:self', function(data)
     inside = false
 end)
 
--- ----------------------------------------------------------
---  Comenzi client
--- ----------------------------------------------------------
-RegisterCommand('factionmenu', function()
-    TriggerServerEvent('ph_factions:sv:openMenu')
-end, false)
+-- Comenzile / (/factionmenu, /duty, ...) sunt in  faction_cmd.lua .
 
 -- suggestions (english)
 AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     TriggerEvent('chat:addSuggestion', '/duty', 'Toggle faction duty on/off')
-    TriggerEvent('chat:addSuggestion', '/factionmenu', 'Open the faction menu (rank 6+ / tester / supervisor)')
+    TriggerEvent('chat:addSuggestion', '/factionmenu', 'Faction menu - Members & Logs (faction rank 6+)')
+    TriggerEvent('chat:addSuggestion', '/devfactionmenu', 'Developer faction menu - create / configure factions (staff >= developer)')
     TriggerEvent('chat:addSuggestion', '/setleader', 'Set a player as faction leader (rank 7 + factions.leader)', {
         { name = 'sqlId' }, { name = 'factionId' } })
     TriggerEvent('chat:addSuggestion', '/setfmember', 'Set a player faction and rank', {
@@ -291,16 +287,26 @@ CreateThread(function()
 end)
 
 -- ----------------------------------------------------------
---  NUI: meniu factiune
+--  NUI: meniu de factiune  (/factionmenu)  +  meniu dev  (/devfactionmenu)
 -- ----------------------------------------------------------
 RegisterNetEvent('ph_factions:cl:openMenu', function(data)
     menuOpen = true
     SetNuiFocus(true, true)
-    SendNUIMessage({ action = 'open', data = data })
+    SendNUIMessage({ action = 'openMember', data = data })
 end)
 
 RegisterNetEvent('ph_factions:cl:menuData', function(data)
-    SendNUIMessage({ action = 'data', data = data })
+    SendNUIMessage({ action = 'memberData', data = data })
+end)
+
+RegisterNetEvent('ph_factions:cl:openDevMenu', function(data)
+    menuOpen = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'openDev', data = data })
+end)
+
+RegisterNetEvent('ph_factions:cl:devData', function(data)
+    SendNUIMessage({ action = 'devData', data = data })
 end)
 
 RegisterNUICallback('close', function(_, cb)
@@ -315,6 +321,11 @@ RegisterNUICallback('menu', function(d, cb)
     cb('ok')
 end)
 
+RegisterNUICallback('devMenu', function(d, cb)
+    TriggerServerEvent('ph_factions:sv:devMenu', d or {})
+    cb('ok')
+end)
+
 RegisterNUICallback('garagePick', function(d, cb)
     garageOpen = false
     SetNuiFocus(false, false)
@@ -322,20 +333,6 @@ RegisterNUICallback('garagePick', function(d, cb)
         TriggerServerEvent('ph_factions:sv:spawnVehicle', d.id, lastGarage.category)
     end
     cb('ok')
-end)
-
-RegisterNUICallback('nearestPlayer', function(_, cb)
-    -- pentru butonul "Recruteaza cel mai apropiat"
-    local ped = PlayerPedId()
-    local pc = GetEntityCoords(ped)
-    local best, bestD = nil, 5.0
-    for _, p in ipairs(GetActivePlayers()) do
-        if p ~= PlayerId() then
-            local d = #(GetEntityCoords(GetPlayerPed(p)) - pc)
-            if d < bestD then best = GetPlayerServerId(p); bestD = d end
-        end
-    end
-    cb({ serverId = best })
 end)
 
 -- inchide meniul cu ESC / Backspace

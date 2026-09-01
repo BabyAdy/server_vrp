@@ -125,119 +125,34 @@ exports('HasStaffRank', function(src, minKey)
 end)
 
 -- ----------------------------------------------------------
---  Comanda de test / administrare de baza
+--  Economie: ajusteaza money / bank / premiumpoints dupa SQL id.
+--    delta pozitiv = adauga ; negativ = scade (plafonat la 0).
+--    Merge si offline (scrie direct in DB).
+--    @return { value = nou, old = vechi, delta = nou-vechi } | nil daca userul nu exista
 -- ----------------------------------------------------------
---  Argumentul <sqlId> este `users.id`, NU server id-ul de sesiune.
---  Merge si pe jucatori offline (scrie direct in DB).
-RegisterCommand('setstaff', function(src, args)
-    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
+local ECON_FIELDS = { money = true, bank = true, premiumpoints = true }
 
-    local userId = tonumber(args[1])
-    local grade  = args[2] or ''
+exports('AdjustBalance', function(userId, field, delta)
+    userId = tonumber(userId)
+    delta  = math.floor(tonumber(delta) or 0)
+    if not userId or not ECON_FIELDS[field] then return nil end
 
-    if not userId then
-        exports['ph-core']:CmdSyntax(src, '/setstaff [sqlId] [grade]')
-        return
-    end
-    if grade ~= '' and not Config.StaffGrades[grade] then
-        local keys = {}
-        for k in pairs(Config.StaffGrades) do keys[#keys + 1] = k end
-        if src == 0 then print('invalid grade. valid: ' .. table.concat(keys, ', '))
-        else exports['ph-core']:CmdSyntax(src, '/setstaff [sqlId] [grade: ' .. table.concat(keys, '/') .. ']') end
-        return
+    local tsrc   = PH.Session.SourceOf(userId)
+    local player = tsrc and PH.Players[tsrc]
+    if player and player.character then
+        local old = math.floor(tonumber(player.character[field]) or 0)
+        local new = math.max(0, old + delta)
+        player.character[field] = new
+        MySQL.update(('UPDATE users SET `%s` = ? WHERE id = ?'):format(field), { new, userId })
+        TriggerClientEvent('ph-core:client:setData', tsrc, field, new)
+        return { value = new, old = old, delta = new - old }
     end
 
-    local tsrc = PH.Session.SourceOf(userId)
-    if tsrc and PH.Players[tsrc] and PH.Players[tsrc].character then
-        PH.Players[tsrc].character.staff = grade
-        MySQL.update.await('UPDATE users SET staff = ? WHERE id = ?', { grade, userId })
-        PH.PushPublic(tsrc)
-        print(('staff for user %d (%s) set to %q'):format(
-            userId, PH.Players[tsrc].character.username, grade))
-        return
-    end
+    local row = MySQL.single.await(('SELECT `%s` AS v FROM users WHERE id = ?'):format(field), { userId })
+    if not row then return nil end
+    local old = math.floor(tonumber(row.v) or 0)
+    local new = math.max(0, old + delta)
+    MySQL.update.await(('UPDATE users SET `%s` = ? WHERE id = ?'):format(field), { new, userId })
+    return { value = new, old = old, delta = new - old }
+end)
 
-    local aff = MySQL.update.await('UPDATE users SET staff = ? WHERE id = ?', { grade, userId })
-    if aff and aff > 0 then
-        print(('staff for user %d (offline) set to %q'):format(userId, grade))
-    else
-        print(('no user with id %d'):format(userId))
-    end
-end, false)
-
--- ----------------------------------------------------------
---  /staffmenu - disponibil pentru staff >= trialhelper
--- ----------------------------------------------------------
-local function notify(src, text, color)
-    if GetResourceState('ph_chat') == 'started' then
-        exports['ph_chat']:send(src, { text = text, textColor = color or '#e8e6f0' })
-    else
-        TriggerClientEvent('chat:addMessage', src, { args = { text } })
-    end
-end
-
--- ----------------------------------------------------------
---  /getbeta [code] - deschisa tuturor; un cod valid (Config.BetaCodes)
---  acorda gradul de staff asociat.
--- ----------------------------------------------------------
-RegisterCommand('getbeta', function(src, args)
-    if src == 0 then
-        print('[ph-core] /getbeta is used in-game.')
-        return
-    end
-
-    local player = PH.Players[src]
-    if not player or not player.character then return end
-
-    local code = tostring(args[1] or ''):lower():gsub('%s', '')
-    if code == '' then
-        exports['ph-core']:CmdSyntax(src, '/getbeta [code]')
-        return
-    end
-
-    local grade = Config.BetaCodes and Config.BetaCodes[code]
-    if not grade or not Config.StaffGrades[grade] then
-        notify(src, 'ERROR: invalid beta code', '#ff4d4d')
-        return
-    end
-
-    if staffRankIndex(player.character.staff) >= staffRankIndex(grade) then
-        notify(src, ('You already have a staff grade of %s or higher.'):format(grade), '#e0c07a')
-        return
-    end
-
-    exports['ph-core']:SetStaff(src, grade)
-
-    local g = Config.StaffGrades[grade]
-    notify(src, ('Beta code accepted. You are now %s.'):format(g and g.label or grade), '#8ce07a')
-    print(('[ph-core] getbeta: user %d (%s) redeemed %q -> %s'):format(
-        player.character.id, player.character.username, code, grade))
-    exports['ph-core']:StaffMsg('getbeta', ('%s redeemed a beta code and is now %s.'):format(
-        player.character.username, g and g.label or grade))
-end, false)
-
-RegisterCommand('staffmenu', function(src)
-    if src == 0 then
-        print('[ph-core] /staffmenu is used in-game.')
-        return
-    end
-
-    local player = PH.Players[src]
-    if not player or not player.character
-       or staffRankIndex(player.character.staff) < staffRankIndex('trialhelper') then
-        exports['ph-core']:CmdPermError(src, 'trialhelper')
-        return
-    end
-
-    if GetResourceState('staff_menu') ~= 'started' then
-        notify(src, 'Staff menu is currently unavailable.', '#ff4d4d')
-        return
-    end
-
-    local grade = Config.StaffGrades[player.character.staff]
-    TriggerClientEvent('ph-core:staff:openMenu', src, {
-        grade = player.character.staff,
-        label = grade and grade.label or nil,
-        rank = staffRankIndex(player.character.staff),
-    })
-end, false)

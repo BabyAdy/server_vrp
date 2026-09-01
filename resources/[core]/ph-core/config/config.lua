@@ -46,6 +46,31 @@ Config.Character = {
     maxHeight = 220,
 }
 
+-- Plafonul afisat pentru toate warn-urile ( x / WarnCap )
+Config.WarnCap = 3
+
+-- ----------------------------------------------------------
+--  Avansare in nivel  (/buylevel, inca neimplementat)
+--    [nivelTinta] = { money = cost $, rp = RP necesari }
+--  /stats afiseaza  RP: <rp curent> / <rp necesari pentru nivelul urmator>.
+--  Nivelele nelistate folosesc Config.LevelUpFormula.
+-- ----------------------------------------------------------
+Config.LevelUp = {
+    [2] = { money = 1000, rp = 3 },
+}
+function Config.LevelUpFormula(targetLevel)
+    local n = math.max(2, math.floor(targetLevel))
+    return {
+        money = math.floor(1000 * (n - 1) ^ 1.6),
+        rp    = 3 * (n - 1),
+    }
+end
+
+--- costul (money + rp) pentru a ajunge la `targetLevel`
+function Config.LevelCost(targetLevel)
+    return Config.LevelUp[targetLevel] or Config.LevelUpFormula(targetLevel)
+end
+
 -- Salvare automata a personajelor (ms)
 Config.AutoSaveInterval = 5 * 60 * 1000
 

@@ -375,45 +375,6 @@ RegisterNetEvent('staff_menu:sv:ticket', function(p)
 end)
 
 -- ----------------------------------------------------------
---  /ticket  (jucatori)
--- ----------------------------------------------------------
-local function inList(t, v)
-    for _, x in ipairs(t) do if x == v then return true end end
-    return false
-end
-
-RegisterCommand('ticket', function(src, args)
-    if src == 0 then return end
-    local char = charOf(src)
-    if not char then return notify(src, 'You are not authenticated.', '#e07a7a') end
-
-    local category = 'general'
-    if args[1] and inList(Config.TicketCategories, args[1]:lower()) then
-        category = table.remove(args, 1):lower()
-    end
-    local msg = table.concat(args, ' '):gsub('^%s+', ''):gsub('%s+$', '')
-    if #msg < 3 then
-        return exports[PH_CORE]:CmdSyntax(src, '/ticket [category] [message]')
-    end
-
-    if not ready then return notify(src, 'The ticket system is not ready.', '#e07a7a') end
-
-    local open = MySQL.scalar.await(
-        "SELECT id FROM tickets WHERE user_id = ? AND status IN ('open','active') LIMIT 1", { char.id })
-    if open then
-        return notify(src, ('You already have an open ticket (#%s).'):format(open), '#e0c07a')
-    end
-
-    local id = MySQL.insert.await(
-        'INSERT INTO tickets (user_id, username, category, message) VALUES (?,?,?,?)',
-        { char.id, char.username, category, msg:sub(1, 500) })
-
-    notify(src, ('Ticket #%s created (%s). A staff member will contact you.'):format(id, category), '#8ce07a')
-    notifyStaff(('[TICKET] #%s (%s) from %s [ID: %s]: %s'):format(
-        id, category, char.username, char.id, msg:sub(1, 120)), '#b98cff')
-end, false)
-
--- ----------------------------------------------------------
 --  Actiuni de moderare
 -- ----------------------------------------------------------
 RegisterNetEvent('staff_menu:sv:action', function(p)
@@ -497,6 +458,8 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         if #reason < 2 then return toast(src, 'Reason too short.', 'error') end
         MySQL.insert('INSERT INTO warns (user_id, username, reason, warned_by, warned_by_name) VALUES (?,?,?,?,?)',
             { tChar.id, tChar.username, reason, sc.id, sc.username })
+        -- contorul plafonat afisat de /stats  (Info: Warns x/3)
+        MySQL.update('UPDATE users SET warns = LEAST(3, warns + 1) WHERE id = ?', { tChar.id })
         notify(tSrc, ('WARNING from %s: %s'):format(sc.username, reason), '#ff5a5a')
         notifyStaff(('%s warned %s [ID:%s]: %s'):format(sc.username, tChar.username, tChar.id, reason), '#e0c07a')
 
@@ -656,105 +619,17 @@ AddEventHandler('playerDropped', function(reason)
 end)
 
 -- ----------------------------------------------------------
---  /heal  si  /revive   (staff >= trialadmin)
---    fara argument -> pe tine ; cu <sqlId> -> pe jucatorul respectiv (online)
+--  Expus pentru  staff_cmd.lua  (toate comenzile / ale resursei).
+--  Fisierele din aceeasi resursa impart mediul GLOBAL, dar nu si local-urile,
+--  deci helperele de care au nevoie comenzile se dau printr-un tabel global.
 -- ----------------------------------------------------------
-local function healTarget(src, args, action)
-    if not requirePerm(src, action) then return end
-    local tSrc = src
-    if args[1] then
-        local uid = tonumber(args[1])
-        tSrc = uid and srcByUserId(uid) or nil
-        if not tSrc then return toast(src, 'The player is not online.', 'error') end
-    end
-
-    TriggerClientEvent('staff_menu:cl:' .. action, tSrc)
-    local sc = charOf(src)
-    local tc = charOf(tSrc)
-    logRaw(sc and sc.id, sc and sc.username, action, tc and ('target %s'):format(tc.id) or 'self')
-
-    if tSrc == src then
-        toast(src, action == 'heal' and 'You healed yourself (100% HP).' or 'You revived yourself (100% HP).', 'success')
-    else
-        toast(src, ('%s: %s (100%% HP).'):format(tc and tc.username or ('#' .. args[1]),
-            action == 'heal' and 'healed' or 'revived'), 'success')
-        notify(tSrc, action == 'heal'
-            and 'You were healed by a staff member.'
-            or  'You were revived by a staff member.', '#8ce07a')
-    end
-end
-
-RegisterCommand('heal',   function(src, args) if src ~= 0 then healTarget(src, args, 'heal') end end, false)
-RegisterCommand('revive', function(src, args) if src ~= 0 then healTarget(src, args, 'revive') end end, false)
-
--- ----------------------------------------------------------
---  Comenzi de vehicul  (se executa pe clientul apelantului)
---    /dv        trialadmin   - sterge vehiculul in care esti / cel mai apropiat
---    /spawncar  generaladmin - spawneaza [model] descuiat + pornit
---    /fix       generaladmin - repara + porneste vehiculul
---    /flip      generaladmin - readuce vehiculul pe roti
---    /maxperf   manager      - tuneaza la maxim performanta (engine/brake/trans/susp/turbo)
---    /dvall     manager      - dupa un anunt global, sterge vehiculele neutilizate
--- ----------------------------------------------------------
-local function vehCmd(src, perm, op, arg)
-    if src == 0 then return end
-    if not requirePerm(src, perm) then return end
-    TriggerClientEvent('staff_menu:cl:vehcmd', src, op, arg)
-    local sc = charOf(src)
-    logRaw(sc and sc.id, sc and sc.username, 'veh_' .. op, arg)
-end
-
-RegisterCommand('dv',      function(src)       vehCmd(src, 'dv', 'dv') end, false)
-RegisterCommand('fix',     function(src)       vehCmd(src, 'fix', 'fix') end, false)
-RegisterCommand('flip',    function(src)       vehCmd(src, 'flip', 'flip') end, false)
-RegisterCommand('maxperf', function(src)       vehCmd(src, 'maxperf', 'maxperf') end, false)
-RegisterCommand('spawncar', function(src, args)
-    local model = tostring(args[1] or ''):gsub('%s', ''):lower()
-    if model == '' then return exports[PH_CORE]:CmdSyntax(src, '/spawncar [model]') end
-    vehCmd(src, 'spawncar', 'spawncar', model)
-end, false)
-
--- ----------------------------------------------------------
---  /setvw <sqlId> <virtualWorld>   (staff >= trialadmin)
---    virtual world = routing bucket (0 = lumea normala)
--- ----------------------------------------------------------
-RegisterCommand('setvw', function(src, args)
-    if not requirePerm(src, 'setvw') then return end
-    local uid = tonumber(args[1])
-    local vw  = tonumber(args[2])
-    if not uid or not vw then
-        return exports[PH_CORE]:CmdSyntax(src, '/setvw [sqlId] [virtualWorld]')
-    end
-    local tSrc = srcByUserId(uid)
-    if not tSrc then return toast(src, 'The player is not online.', 'error') end
-    vw = math.max(0, math.floor(vw))
-    SetPlayerRoutingBucket(tSrc, vw)
-    TriggerClientEvent('staff_menu:cl:refreshDoors', tSrc)   -- re-incuie usile in noul virtual world
-    local sc, tc = charOf(src), charOf(tSrc)
-    logRaw(sc and sc.id, sc and sc.username, 'setvw', ('%s -> vw %d'):format(tc and tc.id or uid, vw))
-    toast(src, ('%s -> virtual world %d.'):format(tc and tc.username or ('#' .. uid), vw), 'success')
-    notify(tSrc, ('You were moved to virtual world %d by a staff member.'):format(vw), '#e0c07a')
-end, false)
-
--- /doorinfo -> pe clientul apelantului: afiseaza model + coords ale usii din apropiere
-RegisterCommand('doorinfo', function(src)
-    if src == 0 then return end
-    if not requirePerm(src, 'doorinfo') then return end
-    TriggerClientEvent('staff_menu:cl:doorinfo', src)
-end, false)
-
-RegisterCommand('dvall', function(src)
-    if not requirePerm(src, 'dvall') then return end
-    local delay = Config.DvallDelaySec or 10
-    local msg = ('STAFF: All unused vehicles will be deleted in %d seconds!'):format(delay)
-    if GetResourceState('ph_chat') == 'started' then
-        exports['ph_chat']:send(-1, { prefix = 'STAFF', prefixColor = '#ff5a5a', text = msg:gsub('^STAFF: ', ''), textColor = '#ffd6d6' })
-    else
-        TriggerClientEvent('chat:addMessage', -1, { args = { msg } })
-    end
-    local sc = charOf(src)
-    logRaw(sc and sc.id, sc and sc.username, 'veh_dvall', ('delay %ds'):format(delay))
-    SetTimeout(delay * 1000, function()
-        TriggerClientEvent('staff_menu:cl:dvall', -1)
-    end)
-end, false)
+SMENV = {
+    charOf       = charOf,
+    notify       = notify,
+    notifyStaff  = notifyStaff,
+    toast        = toast,
+    requirePerm  = requirePerm,
+    srcByUserId  = srcByUserId,
+    logRaw       = logRaw,
+    isReady      = function() return ready end,
+}

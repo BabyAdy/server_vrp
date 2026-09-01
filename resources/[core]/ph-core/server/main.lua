@@ -186,28 +186,7 @@ exports('StaffMsg', function(key, text, color)
     print('^5[staff]^7 ' .. line)
 end)
 
--- ----------------------------------------------------------
---  Comenzi utilitare (dev/admin)
--- ----------------------------------------------------------
-RegisterCommand('phresetchar', function(src)
-    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
-
-    local player = PH.Players[src]
-    if not player then
-        if src == 0 then print('[ph-core] Use this command in-game.') end
-        return
-    end
-
-    MySQL.update.await([[
-        UPDATE users
-        SET dob = NULL, appearance = NULL, gender = 0, height = 180,
-            level = 1, rp = 0, money = 500, bank = 0, playtime = 0
-        WHERE id = ?
-    ]], { player.userId })
-    player.character = nil
-    PH.Log(('Character manually reset for user %d [src %d]'):format(player.userId, src))
-    DropPlayer(src, 'Your character has been reset. Reconnect to create a new one.')
-end, false)
+-- Comenzile / ale ph-core sunt in  server/commands.lua .
 
 -- ----------------------------------------------------------
 --  La oprirea resursei salveaza tot
