@@ -116,13 +116,12 @@ Config.HotbarBase  = 6001   -- fast slot #i => slot numeric 6000 + i
 --  type: 'item' | 'weapon' | 'ammo' | 'clothing'
 -- ==========================================================
 
--- Addon clothing "mp_f_freemode_01_staff" (jbib / slot 'jacket' = component 11).
--- Streamat de [stream]/ph_clothing.  Hainele ADDON sunt intotdeauna DUPA cele vanilla,
--- deci 'last' = ultimul drawable = hanoracul nostru (rezolvat pe client la echipare).
---   'last'   -> ultimul drawable pentru component 11
---   'last-1' -> penultimul, etc.
---   sau un numar fix, dupa ce afli indexul cu  /tryon info  +  /tryon component 11 <N>
-local STAFF_F_JBIB_DRAWABLE = 'last'
+-- Hanorace staff F - haine streamate prin PREFIX ( ^ ), fara .meta (metoda replace).
+-- Fisierele din [stream]/ph_clothing/stream/ INLOCUIESC un drawable vanilla de jbib
+-- pentru  mp_f_freemode_01 . Pune aici acelasi index cu cel din numele fisierelor:
+--   stream/mp_f_freemode_01^jbib_<N>_u.ydd  +  ^jbib_diff_<N>_[a|b|c]_uni.ytd
+-- Indexul e folosit DIRECT la echipare si la /tryon; nu se citeste nicio colectie.
+local STAFF_F_JBIB_DRAWABLE = 15   -- <<< pune indexul vanilla jbib pe care il inlocuiesti
 
 Config.Items = {
     -- consumabile / misc
