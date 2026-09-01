@@ -30,35 +30,9 @@ files {
     -- Daca un vehicul chiar are `vehiclelayouts.meta`, adauga aici linia
     --   'data/**/vehiclelayouts.meta',
     -- si `data_file 'VEHICLE_LAYOUTS_FILE' 'data/**/vehiclelayouts.meta'` mai jos.
-
-    -- audio custom de vehicul (mf1 / mf1c -> dlc_progenmf1)
-    'audio/config/mf1_game.dat151.rel',
-    'audio/config/mf1_game.dat151.nametable',
-    'audio/config/mf1_sounds.dat54.rel',
-    'audio/config/mf1_sounds.dat54.nametable',
-    'audio/config/mf1c_game.dat151.rel',
-    'audio/config/mf1c_game.dat151.nametable',
-    'audio/config/mf1c_sounds.dat54.rel',
-    'audio/config/mf1c_sounds.dat54.nametable',
-    'audio/sfx/dlc_progenmf1/progenmf1.awc',
-    'audio/sfx/dlc_progenmf1/progenmf1_npc.awc',
 }
 
 data_file 'VEHICLE_METADATA_FILE'  'data/**/vehicles.meta'
 data_file 'CARCOLS_FILE'           'data/**/carcols.meta'
 data_file 'VEHICLE_VARIATION_FILE' 'data/**/carvariations.meta'
 data_file 'HANDLING_FILE'          'data/**/handling.meta'
-
--- ==========================================================
---  AUDIO CUSTOM DE VEHICUL
---  Fisierele efective: audio/config/<name>_game.dat151(.rel/.nametable) +
---  audio/config/<name>_sounds.dat54(.rel/.nametable), iar AWC-urile in
---  audio/sfx/<dlcname>/ .  In `data_file` se scrie calea FARA "151"/"54"/".rel"
---  (motorul le adauga singur).  Pentru fiecare model nou de vehicul cu audio
---  propriu adaugi inca o pereche GAMEDATA + SOUNDDATA + fisierele in `files{}`.
--- ==========================================================
-data_file 'AUDIO_GAMEDATA'  'audio/config/mf1_game.dat'
-data_file 'AUDIO_SOUNDDATA' 'audio/config/mf1_sounds.dat'
-data_file 'AUDIO_GAMEDATA'  'audio/config/mf1c_game.dat'
-data_file 'AUDIO_SOUNDDATA' 'audio/config/mf1c_sounds.dat'
-data_file 'AUDIO_WAVEPACK'  'audio/sfx/dlc_progenmf1'
