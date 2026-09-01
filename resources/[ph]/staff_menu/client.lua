@@ -382,9 +382,18 @@ end)
 -- ==========================================================
 --  COMENZI DE VEHICUL  (executate pe clientul apelantului)
 -- ==========================================================
-local spawnedCar = nil   -- ultimul vehicul din /spawncar
+local spawnedCars = {}   -- toate vehiculele din /spawncar (raman in lume; nu se sterg intre ele)
 
 local function nc_toast(text) SendNUIMessage({ action = 'toast', text = text }) end
+
+--- scoate un vehicul din lista de urmarire /spawncar
+local function forgetSpawned(veh)
+    for i = #spawnedCars, 1, -1 do
+        if spawnedCars[i] == veh or not DoesEntityExist(spawnedCars[i]) then
+            table.remove(spawnedCars, i)
+        end
+    end
+end
 
 --- sterge un vehicul, cerand mai intai controlul retelei (onesync)
 local function deleteVeh(veh)
@@ -456,7 +465,7 @@ RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
     if op == 'dv' then
         local veh = targetVehicle(8.0)
         if veh == 0 then return nc_toast('No vehicle nearby.') end
-        if veh == spawnedCar then spawnedCar = nil end
+        forgetSpawned(veh)
         deleteVeh(veh)
         nc_toast('Vehicle deleted.')
 
@@ -484,7 +493,7 @@ RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
         if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
             return nc_toast(('Invalid model: %s'):format(model))
         end
-        if spawnedCar and DoesEntityExist(spawnedCar) then deleteVeh(spawnedCar); spawnedCar = nil end
+        -- vehiculul precedent din /spawncar NU se mai sterge; ramane in lume
         RequestModel(hash)
         local t = 0
         while not HasModelLoaded(hash) and t < 200 do Wait(10); t = t + 1 end
@@ -502,7 +511,7 @@ RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
         SetVehicleEngineOn(veh, true, true, false)
         SetVehicleDirtLevel(veh, 0.0)
         SetPedIntoVehicle(ped, veh, -1)
-        spawnedCar = veh
+        spawnedCars[#spawnedCars + 1] = veh
         nc_toast(('Spawned: %s'):format(model))
     end
 end)
@@ -518,7 +527,7 @@ RegisterNetEvent('staff_menu:cl:dvall', function()
                 end
             end
             if empty then
-                if veh == spawnedCar then spawnedCar = nil end
+                forgetSpawned(veh)
                 NetworkRequestControlOfEntity(veh)
                 SetEntityAsMissionEntity(veh, true, true)
                 DeleteVehicle(veh)
@@ -529,8 +538,9 @@ RegisterNetEvent('staff_menu:cl:dvall', function()
 end)
 
 AddEventHandler('onResourceStop', function(res)
-    if res == GetCurrentResourceName() and spawnedCar and DoesEntityExist(spawnedCar) then
-        DeleteVehicle(spawnedCar)
+    if res ~= GetCurrentResourceName() then return end
+    for _, veh in ipairs(spawnedCars) do
+        if DoesEntityExist(veh) then DeleteVehicle(veh) end
     end
 end)
 
