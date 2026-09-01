@@ -63,13 +63,13 @@ CreateThread(function()
             end
         end)
         if not ok2 then
-            print('^1[ph_inventory] eroare init DB:^7 ' .. tostring(err))
+            print('^1[ph_inventory] DB init error:^7 ' .. tostring(err))
             return
         end
     end
 
     ready = true
-    print('^5[ph_inventory]^7 pregatit.')
+    print('^5[ph_inventory]^7 ready.')
 end)
 
 -- ----------------------------------------------------------
@@ -103,12 +103,17 @@ local function srcOf(userId)
     return (ok and s) or nil
 end
 
+--- feedback de inventar = lucruri marunte -> notificare simpla deasupra minimapului
+local function kindFromColor(color)
+    if color == '#e07a7a' or color == '#ff4d4d' then return 'error' end
+    if color == '#e0c07a' then return 'warning' end
+    if color == '#8ce07a' then return 'success' end
+    return 'info'
+end
+
 local function notify(src, text, color)
-    if GetResourceState('ph_chat') == 'started' then
-        exports['ph_chat']:send(src, { text = text, textColor = color or '#e8e6f0' })
-    else
-        TriggerClientEvent('chat:addMessage', src, { args = { text } })
-    end
+    if not src or src == 0 then return end
+    exports[PH]:Notify(src, text, kindFromColor(color))
 end
 
 --- coercitie stricta la numar intreg (nil daca nu e valid)
@@ -277,7 +282,7 @@ local function shrinkTo(uid, newSlots)
             else
                 pcall(function()
                     exports['ph_postoffice']:Deposit(uid,
-                        { name = e.name, count = e.count, meta = e.meta }, 'abonament expirat')
+                        { name = e.name, count = e.count, meta = e.meta }, 'subscription expired')
                 end)
             end
         end
@@ -412,7 +417,7 @@ local function loadInv(src)
                 -- 3. nu incape -> post office
                 pcall(function()
                     exports['ph_postoffice']:Deposit(uid,
-                        { name = e.name, count = e.count, meta = e.meta }, 'sloturi reduse')
+                        { name = e.name, count = e.count, meta = e.meta }, 'slots reduced')
                 end)
             end
         end
@@ -578,7 +583,7 @@ local function doMove(src, inv, from, to, count)
 
     -- destinatia hotbar accepta doar arme / consumabile
     if isHotbarSlot(to) and not slotAccepts(to, a.name) then
-        notify(src, 'Pe fast slot intra doar arme si consumabile.', '#e07a7a')
+        notify(src, 'Only weapons and consumables fit in a fast slot.', '#e07a7a')
         return false
     end
 
@@ -614,7 +619,7 @@ local function doMove(src, inv, from, to, count)
     if count >= a.count then
         -- swap-ul aduce `b` pe `from`; daca `from` e hotbar, `b` trebuie acceptat
         if isHotbarSlot(from) and not slotAccepts(from, b.name) then
-            notify(src, 'Nu poti muta asta pe fast slot.', '#e07a7a')
+            notify(src, 'You cannot move that to a fast slot.', '#e07a7a')
             return false
         end
         setSlot(inv, from, b); setSlot(inv, to, a)
@@ -635,7 +640,7 @@ local function doClothingMove(src, inv, from, to)
         if not e then return false end
         local d = itemDef(e.name)
         if not d or d.type ~= 'clothing' or d.slot ~= toKey then
-            notify(src, 'Acest obiect nu se poate echipa in slotul respectiv.', '#e07a7a')
+            notify(src, 'This item cannot be equipped in that slot.', '#e07a7a')
             return false
         end
 
@@ -657,7 +662,7 @@ local function doClothingMove(src, inv, from, to)
                 else
                     inv.items[from] = { name = e.name, count = 1, meta = e.meta }
                 end
-                notify(src, 'Nu ai loc in inventar pentru obiectul scos.', '#e07a7a')
+                notify(src, 'Not enough inventory space for the removed item.', '#e07a7a')
                 return false
             end
             inv.items[dest] = { name = prev.name, count = 1, meta = prev.meta }
@@ -682,7 +687,7 @@ local function doClothingMove(src, inv, from, to)
             else
                 local free = firstFreeSlot(inv)
                 if not free then
-                    notify(src, 'Nu ai slot liber.', '#e07a7a')
+                    notify(src, 'No free slot.', '#e07a7a')
                     return false
                 end
                 inv.items[free] = { name = worn.name, count = 1, meta = worn.meta }
@@ -744,7 +749,7 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     local wd, ad = itemDef(wpn.name), itemDef(ammo.name)
     if not wd or wd.type ~= 'weapon' or not wd.ammoType then return pushState(src) end
     if not ad or ad.type ~= 'ammo' or wd.ammoType ~= ammo.name then
-        notify(src, 'Munitie incompatibila cu arma.', '#e07a7a')
+        notify(src, 'Ammo not compatible with this weapon.', '#e07a7a')
         return pushState(src)
     end
 
@@ -752,7 +757,7 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     local cap  = maxAmmoOf(wpn.name)
     local room = cap - (wpn.meta.ammo or 0)
     if room <= 0 then
-        notify(src, ('Arma este deja plina (max %d).'):format(cap), '#e0c07a')
+        notify(src, ('Weapon is already full (max %d).'):format(cap), '#e0c07a')
         return pushState(src)
     end
 
@@ -761,7 +766,7 @@ RegisterNetEvent('ph_inventory:sv:loadAmmo', function(ammoSlot, weaponSlot)
     ammo.count = ammo.count - take
     if ammo.count <= 0 then setSlot(inv, ammoSlot, nil) end
 
-    notify(src, ('Incarcat %d gloante. Total: %d/%d'):format(take, wpn.meta.ammo, cap), '#8ce07a')
+    notify(src, ('Loaded %d rounds. Total: %d/%d'):format(take, wpn.meta.ammo, cap), '#8ce07a')
     if isHotbarSlot(weaponSlot) then
         TriggerClientEvent('ph_inventory:cl:weaponMeta', src, weaponSlot, wpn.meta.ammo, wpn.meta.durability)
     end
@@ -795,14 +800,14 @@ RegisterNetEvent('ph_inventory:sv:applyAttachment', function(attachSlot, weaponS
 
     local comp = (acfg.components and acfg.components[wd.weaponName]) or acfg.component
     if not comp then
-        notify(src, 'Atasamentul nu e compatibil cu aceasta arma.', '#e07a7a')
+        notify(src, 'Attachment not compatible with this weapon.', '#e07a7a')
         return pushState(src)
     end
 
     ensureWeaponMeta(wpn)
     for _, k in ipairs(wpn.meta.attachments) do
         if k == key then
-            notify(src, 'Atasamentul este deja montat.', '#e0c07a')
+            notify(src, 'Attachment is already fitted.', '#e0c07a')
             return pushState(src)
         end
     end
@@ -811,7 +816,7 @@ RegisterNetEvent('ph_inventory:sv:applyAttachment', function(attachSlot, weaponS
     at.count = at.count - 1
     if at.count <= 0 then setSlot(inv, attachSlot, nil) end
 
-    notify(src, ('Montat: %s'):format(acfg.label or key), '#8ce07a')
+    notify(src, ('Fitted: %s'):format(acfg.label or key), '#8ce07a')
     TriggerClientEvent('ph_inventory:cl:weaponMods', src, weaponSlot, wpn.meta.attachments)
     saveInv(uid); pushState(src)
 end)
@@ -844,7 +849,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         if count < 1 or count >= e.count or e.meta then return pushState(src) end
         local free = firstFreeSlot(inv)
         if not free then
-            notify(src, 'Nu ai slot liber.', '#e07a7a')
+            notify(src, 'No free slot.', '#e07a7a')
             return pushState(src)
         end
         inv.items[free] = { name = e.name, count = count }
@@ -874,7 +879,7 @@ RegisterNetEvent('ph_inventory:sv:context', function(op, slot, count, extra)
         end
         if not removed then return pushState(src) end
         local acfg = Config.Attachments[removed]
-        notify(src, ('Scos: %s'):format((acfg and acfg.label) or removed), '#e0c07a')
+        notify(src, ('Removed: %s'):format((acfg and acfg.label) or removed), '#e0c07a')
         TriggerClientEvent('ph_inventory:cl:weaponMods', src, slot, e.meta.attachments)
         saveInv(uid); pushState(src)
 
@@ -942,7 +947,7 @@ RegisterNetEvent('ph_inventory:sv:pickup', function(dropId)
     local c = GetEntityCoords(GetPlayerPed(src))
     local dx, dy, dz = d.coords.x - c.x, d.coords.y - c.y, d.coords.z - c.z
     if (dx * dx + dy * dy + dz * dz) > (Config.Drop.PickupDistance ^ 2) then
-        notify(src, 'Prea departe de item.', '#e07a7a')
+        notify(src, 'Too far from the item.', '#e07a7a')
         return pushState(src)
     end
 
@@ -958,7 +963,7 @@ RegisterNetEvent('ph_inventory:sv:pickup', function(dropId)
     else
         d.items = leftover
         TriggerClientEvent('ph_inventory:cl:dropAdd', -1, d.id, d.coords, dropPreview(leftover))
-        notify(src, 'Inventar plin - o parte a ramas pe jos.', '#e0c07a')
+        notify(src, 'Inventory full - some items were left on the ground.', '#e0c07a')
     end
     saveInv(uid); pushState(src)
 end)
@@ -999,7 +1004,7 @@ RegisterNetEvent('ph_inventory:sv:unequip', function(eqSlot)
 
     local free = firstFreeSlot(inv)
     if not free then
-        notify(src, 'Nu ai slot liber.', '#e07a7a')
+        notify(src, 'No free slot.', '#e07a7a')
         return pushState(src)
     end
     if doClothingMove(src, inv, num, free) then saveInv(uid) end
@@ -1025,7 +1030,7 @@ RegisterNetEvent('ph_inventory:sv:useHotbar', function(hotIndex)
     if d.type == 'weapon' then
         ensureWeaponMeta(e)
         if Config.Weapon.BrokenBlocksEquip and (e.meta.durability or 0) <= 0 then
-            return notify(src, 'Arma este stricata.', '#e07a7a')
+            return notify(src, 'The weapon is broken.', '#e07a7a')
         end
         TriggerClientEvent('ph_inventory:cl:equipWeapon', src, {
             slot          = hotbarSlotOf(hotIndex),
@@ -1064,7 +1069,7 @@ RegisterNetEvent('ph_inventory:sv:weaponSync', function(slot, ammo, durability)
 
     if Config.Weapon.BreakAtZero and e.meta.durability <= 0 then
         setSlot(inv, slot, nil)
-        notify(src, 'Arma s-a spart si a fost distrusa.', '#e07a7a')
+        notify(src, 'The weapon broke and was destroyed.', '#e07a7a')
         TriggerClientEvent('ph_inventory:cl:weaponBroke', src, slot)
         saveInv(uid); pushState(src)
         return
@@ -1152,16 +1157,16 @@ end)
 -- ----------------------------------------------------------
 --  Argumentul <sqlId> este `users.id`, NU server id-ul de sesiune.
 RegisterCommand('giveitem', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports[PH]:RequireAce(src, 'ph.admin', 'admin') then return end
     local targetUid = toInt(args[1])
     local name      = args[2]
     local count     = toInt(args[3]) or 1
     if not targetUid or not name or not Config.Items[name] then
-        print('uz: giveitem <sqlId> <item> [count]')
+        exports[PH]:CmdSyntax(src, '/giveitem [sqlId] [item] [count]')
         return
     end
     if not INV[targetUid] then
-        print(('giveitem: user %s nu are inventarul incarcat (offline?).'):format(targetUid))
+        notify(src, ('giveitem: user %s has no inventory loaded (offline?).'):format(targetUid), '#ff4d4d')
         return
     end
     if addItem(targetUid, name, count) then
@@ -1169,7 +1174,7 @@ RegisterCommand('giveitem', function(src, args)
         local tsrc = srcOf(targetUid)
         if tsrc then
             pushState(tsrc)
-            notify(tsrc, ('Ai primit %dx %s'):format(count, Config.Items[name].label), '#8ce07a')
+            notify(tsrc, ('You received %dx %s'):format(count, Config.Items[name].label), '#8ce07a')
         end
         print(('giveitem: %dx %s -> user %s'):format(count, name, targetUid))
     end
@@ -1177,15 +1182,15 @@ end, false)
 
 --  Merge si pe jucatori offline (scrie in DB; se aplica la urmatoarea conectare).
 RegisterCommand('setslots', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports[PH]:RequireAce(src, 'ph.admin', 'admin') then return end
     local targetUid = toInt(args[1])
     local n         = toInt(args[2])
-    if not targetUid or not n then print('uz: setslots <sqlId> <nrSloturi>') return end
+    if not targetUid or not n then exports[PH]:CmdSyntax(src, '/setslots [sqlId] [slots]') return end
     n = math.max(Config.DefaultSlots, math.min(Config.MaxSlots, n))
 
     local aff = MySQL.update.await('UPDATE users SET inv_slots = ? WHERE id = ?', { n, targetUid })
     if not aff or aff == 0 then
-        print(('setslots: nu exista niciun user cu id %s'):format(targetUid))
+        notify(src, ('setslots: no user with id %s.'):format(targetUid), '#ff4d4d')
         return
     end
     local inv = INV[targetUid]
@@ -1202,7 +1207,7 @@ RegisterCommand('setslots', function(src, args)
         local tsrc = srcOf(targetUid)
         if tsrc then pushState(tsrc) end
     end
-    print(('sloturi de baza pentru user %s setate la %d (+%d bonus)'):format(
+    print(('base slots for user %s set to %d (+%d bonus)'):format(
         targetUid, n, inv and inv.subBonus or 0))
 end, false)
 

@@ -59,8 +59,8 @@ end)
 -- ----------------------------------------------------------
 RegisterCommand('phChatOpen', function() openChat('') end, false)
 RegisterCommand('phChatCmd', function() openChat('/') end, false)
-RegisterKeyMapping('phChatOpen', 'Chat: scrie un mesaj', 'keyboard', Config.OpenKey)
-RegisterKeyMapping('phChatCmd', 'Chat: scrie o comanda', 'keyboard', Config.CmdKey)
+RegisterKeyMapping('phChatOpen', 'Chat: Text a message', 'keyboard', Config.OpenKey)
+RegisterKeyMapping('phChatCmd', 'Chat: Text a command', 'keyboard', Config.CmdKey)
 
 -- ----------------------------------------------------------
 --  Primire mesaje

@@ -110,3 +110,28 @@ RegisterNetEvent('ph-core:client:setData', function(key, value)
     PH.Character[key] = value
     TriggerEvent('ph-core:client:dataChanged', key, value, PH.Character)
 end)
+
+-- ----------------------------------------------------------
+--  Notificare simpla deasupra minimapului (native GTA feed)
+--  Server: exports['ph-core']:Notify(src, 'text', 'success')
+-- ----------------------------------------------------------
+local NOTIFY_PREFIX = {
+    info    = '',
+    success = '~g~',
+    warning = '~y~',
+    error   = '~r~',
+}
+
+local function showNotify(text, kind)
+    BeginTextCommandThefeedPost('STRING')
+    AddTextComponentSubstringPlayerName((NOTIFY_PREFIX[kind] or '') .. tostring(text))
+    EndTextCommandThefeedPostTicker(false, true)
+end
+
+RegisterNetEvent('ph-core:cl:notify', function(text, kind)
+    showNotify(text, kind)
+end)
+
+exports('Notify', function(text, kind)
+    showNotify(text, kind)
+end)

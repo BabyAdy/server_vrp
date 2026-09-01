@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,76 +19,76 @@
         <section class="screen" id="screen-loading">
             <div class="card">
                 <div class="spinner"></div>
-                <p class="muted">Se conecteaza la server...</p>
+                <p class="muted">Connecting to the server...</p>
             </div>
         </section>
 
         <!-- LOGIN -->
         <section class="screen" id="screen-login">
             <div class="card">
-                <h2>Autentificare</h2>
+                <h2>Login</h2>
                 <form id="form-login" autocomplete="off">
                     <label>Username
                         <input name="username" type="text" maxlength="24" required />
                     </label>
-                    <label>Parola
+                    <label>Password
                         <input name="password" type="password" maxlength="64" required />
                     </label>
                     <p class="form-msg" id="msg-login"></p>
-                    <button type="submit" class="btn primary">Intra in joc</button>
+                    <button type="submit" class="btn primary">Enter game</button>
                 </form>
-                <p class="switch">Nu ai cont? <a data-screen="register">Creeaza unul</a></p>
+                <p class="switch">No account? <a data-screen="register">Create one</a></p>
             </div>
         </section>
 
         <!-- REGISTER -->
         <section class="screen" id="screen-register">
             <div class="card">
-                <h2>Cont nou</h2>
+                <h2>New account</h2>
                 <form id="form-register" autocomplete="off">
                     <label>Username
                         <input name="username" type="text" maxlength="24" required />
-                        <small>3-24 caractere: litere, cifre, _ (este si numele in joc)</small>
+                        <small>3-24 characters: letters, digits, _ (also your in-game name)</small>
                     </label>
                     <label>Email
                         <input name="email" type="email" maxlength="120" required />
                     </label>
-                    <label>Parola
+                    <label>Password
                         <input name="password" type="password" maxlength="64" required />
-                        <small>minim 6 caractere</small>
+                        <small>minimum 6 characters</small>
                     </label>
-                    <label>Confirma parola
+                    <label>Confirm password
                         <input name="password2" type="password" maxlength="64" required />
                     </label>
                     <p class="form-msg" id="msg-register"></p>
-                    <button type="submit" class="btn primary">Creeaza cont</button>
+                    <button type="submit" class="btn primary">Create account</button>
                 </form>
-                <p class="switch">Ai deja cont? <a data-screen="login">Autentifica-te</a></p>
+                <p class="switch">Already have an account? <a data-screen="login">Log in</a></p>
             </div>
         </section>
 
         <!-- CHARACTER CREATE -->
         <section class="screen" id="screen-charcreate">
             <div class="card wide">
-                <h2>Creeaza-ti personajul</h2>
-                <p class="hint">Vei juca sub numele <b id="cc-name">-</b></p>
+                <h2>Create your character</h2>
+                <p class="hint">You will play as <b id="cc-name">-</b></p>
                 <form id="form-char" autocomplete="off">
                     <div class="row">
-                        <label>Data nasterii
+                        <label>Date of birth
                             <input name="dob" type="date" required />
                         </label>
-                        <label>Gen
+                        <label>Gender
                             <select name="gender">
-                                <option value="0">Masculin</option>
-                                <option value="1">Feminin</option>
+                                <option value="0">Male</option>
+                                <option value="1">Female</option>
                             </select>
                         </label>
                     </div>
-                    <label>Inaltime: <span id="height-val">180</span> cm
+                    <label>Height: <span id="height-val">180</span> cm
                         <input name="height" type="range" min="140" max="220" value="180" step="1" />
                     </label>
                     <p class="form-msg" id="msg-char"></p>
-                    <button type="submit" class="btn primary">Intra in joc</button>
+                    <button type="submit" class="btn primary">Enter game</button>
                 </form>
             </div>
         </section>

@@ -10,7 +10,7 @@
             <header>
                 <div class="title">STAFF<span>MENU</span></div>
                 <div class="me"><span id="me-name">-</span><b id="me-rank">-</b></div>
-                <button id="close" title="Inchide (ESC)">✕</button>
+                <button id="close" title="Close (ESC)">✕</button>
             </header>
 
             <div id="body">
@@ -20,7 +20,7 @@
                     <!-- STAFF -->
                     <section class="tab" data-tab="staff">
                         <div class="target-bar">
-                            Tinta: <b id="target-label">niciun jucator selectat</b>
+                            Target: <b id="target-label">no player selected</b>
                             <span class="hint">— selecteaza din tab-ul Players</span>
                         </div>
                         <div id="staff-actions" class="btn-grid"></div>
@@ -29,7 +29,7 @@
                     <!-- TICKETS -->
                     <section class="tab" data-tab="tickets">
                         <div class="row-head">
-                            <h3>Tickete deschise</h3>
+                            <h3>Open tickets</h3>
                             <button class="mini" data-refresh="tickets">Refresh</button>
                         </div>
                         <div id="tickets-list" class="list"></div>
@@ -38,7 +38,7 @@
                     <!-- ACTIVE -->
                     <section class="tab" data-tab="active">
                         <div class="row-head">
-                            <h3>Ticketele mele active</h3>
+                            <h3>My active tickets</h3>
                             <button class="mini" data-refresh="active">Refresh</button>
                         </div>
                         <div id="active-list" class="list"></div>
@@ -47,7 +47,7 @@
                     <!-- PLAYERS -->
                     <section class="tab" data-tab="players">
                         <div class="row-head">
-                            <input id="player-search" placeholder="Cauta dupa SQL ID sau Username..." />
+                            <input id="player-search" placeholder="Search by SQL ID or Username..." />
                             <button class="mini" data-refresh="players">Refresh</button>
                         </div>
                         <div id="players-list" class="list"></div>
@@ -60,29 +60,29 @@
                             <div class="inline">
                                 <input id="dev-staff-src" type="number" placeholder="sql id (users.id)" />
                                 <select id="dev-staff-grade"></select>
-                                <button class="mini go" id="dev-staff-go">Aplica</button>
+                                <button class="mini go" id="dev-staff-go">Apply</button>
                             </div>
                         </div>
                         <div class="dev-block">
-                            <h3>Restart resursa</h3>
+                            <h3>Restart resource</h3>
                             <div class="inline">
-                                <input id="dev-res" placeholder="nume resursa" />
+                                <input id="dev-res" placeholder="resource name" />
                                 <button class="mini go" id="dev-res-go">ensure</button>
                             </div>
                         </div>
                         <div class="dev-block">
-                            <h3>Teleport la coordonate</h3>
+                            <h3>Teleport to coordinates</h3>
                             <div class="inline">
                                 <input id="dev-x" type="number" step="0.01" placeholder="x" />
                                 <input id="dev-y" type="number" step="0.01" placeholder="y" />
                                 <input id="dev-z" type="number" step="0.01" placeholder="z" />
-                                <button class="mini" id="dev-fill">Coord. mele</button>
+                                <button class="mini" id="dev-fill">My coords</button>
                                 <button class="mini go" id="dev-tp-go">TP</button>
                             </div>
                         </div>
                         <div class="dev-block">
-                            <h3>Info server</h3>
-                            <button class="mini" id="dev-info-go">Reincarca</button>
+                            <h3>Server info</h3>
+                            <button class="mini" id="dev-info-go">Reload</button>
                             <div id="dev-info" class="info"></div>
                         </div>
                     </section>
@@ -93,14 +93,14 @@
         <!-- MODAL -->
         <div id="modal" class="hidden">
             <div class="modal-card">
-                <h3 id="modal-title">Actiune</h3>
-                <label id="m-reason-w">Motiv<textarea id="m-reason" rows="2"></textarea></label>
-                <label id="m-days-w">Zile (0 = permanent)<input id="m-days" type="number" min="0" value="0" /></label>
+                <h3 id="modal-title">Action</h3>
+                <label id="m-reason-w">Reason<textarea id="m-reason" rows="2"></textarea></label>
+                <label id="m-days-w">Days (0 = permanent)<input id="m-days" type="number" min="0" value="0" /></label>
                 <label id="m-text-w">Text<textarea id="m-text" rows="2"></textarea></label>
-                <label id="m-ref-w">ID ban sau licenta<input id="m-ref" type="text" /></label>
+                <label id="m-ref-w">Ban ID or license<input id="m-ref" type="text" /></label>
                 <div class="modal-actions">
-                    <button id="m-cancel" class="mini">Anuleaza</button>
-                    <button id="m-ok" class="mini go">Confirma</button>
+                    <button id="m-cancel" class="mini">Cancel</button>
+                    <button id="m-ok" class="mini go">Confirm</button>
                 </div>
             </div>
         </div>

@@ -85,7 +85,7 @@ RegisterNetEvent('staff_menu:cl:freeze', function(state)
     local ped = PlayerPedId()
     FreezeEntityPosition(ped, state == true)
     if state then
-        SendNUIMessage({ action = 'toast', text = 'Ai fost inghetat de staff.' })
+        SendNUIMessage({ action = 'toast', text = 'You were frozen by staff.' })
     end
 end)
 
@@ -117,13 +117,13 @@ RegisterNetEvent('staff_menu:cl:spectate', function(targetServerId)
         SetEntityInvincible(PlayerPedId(), false)
         spectating = false
         specTarget = nil
-        SendNUIMessage({ action = 'toast', text = 'Spectate oprit.' })
+        SendNUIMessage({ action = 'toast', text = 'Spectate stopped.' })
         return
     end
 
     local tp = GetPlayerFromServerId(targetServerId)
     if tp == -1 then
-        SendNUIMessage({ action = 'toast', text = 'Tinta nu e in raza.' })
+        SendNUIMessage({ action = 'toast', text = 'Target is out of range.' })
         return
     end
     local tPed = GetPlayerPed(tp)
@@ -137,7 +137,7 @@ RegisterNetEvent('staff_menu:cl:spectate', function(targetServerId)
     NetworkSetInSpectatorMode(true, tPed)
     spectating = true
     specTarget = targetServerId
-    SendNUIMessage({ action = 'toast', text = 'Spectezi jucatorul. Ruleaza din nou pentru stop.' })
+    SendNUIMessage({ action = 'toast', text = 'Spectating the player. Run again to stop.' })
 end)
 
 -- inchide meniul cu ESC / BACKSPACE cat timp e deschis
@@ -174,17 +174,17 @@ AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     TriggerServerEvent('staff_menu:sv:reqNoclip')
     TriggerServerEvent('staff_menu:sv:reqNoclipList')
-    TriggerEvent('chat:addSuggestion', '/heal', 'staff>=trialadmin: 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
-    TriggerEvent('chat:addSuggestion', '/revive', 'staff>=trialadmin: reinvie cu 100% HP (fara id = pe tine)', { { name = 'sqlId (optional)' } })
-    TriggerEvent('chat:addSuggestion', '/dv', 'staff>=trialadmin: sterge vehiculul din apropiere')
-    TriggerEvent('chat:addSuggestion', '/spawncar', 'staff>=generaladmin: spawneaza un vehicul', { { name = 'model' } })
-    TriggerEvent('chat:addSuggestion', '/fix', 'staff>=generaladmin: repara + porneste vehiculul')
-    TriggerEvent('chat:addSuggestion', '/flip', 'staff>=generaladmin: readu vehiculul pe roti')
-    TriggerEvent('chat:addSuggestion', '/maxperf', 'staff>=manager: tuneaza performanta la maxim')
-    TriggerEvent('chat:addSuggestion', '/dvall', 'staff>=manager: sterge toate vehiculele neutilizate (10s)')
-    TriggerEvent('chat:addSuggestion', '/setvw', 'staff>=trialadmin: muta un jucator intr-un virtual world', {
-        { name = 'sqlId' }, { name = 'virtualWorld (0 = normal)' } })
-    TriggerEvent('chat:addSuggestion', '/doorinfo', 'staff>=developer: afiseaza model + coords ale usii din apropiere')
+    TriggerEvent('chat:addSuggestion', '/heal', 'Set 100% HP (no id = yourself)', { { name = 'sqlId', help = 'optional' } })
+    TriggerEvent('chat:addSuggestion', '/revive', 'Revive with 100% HP (no id = yourself)', { { name = 'sqlId', help = 'optional' } })
+    TriggerEvent('chat:addSuggestion', '/dv', 'Delete the nearest vehicle')
+    TriggerEvent('chat:addSuggestion', '/spawncar', 'Spawn a vehicle (unlocked + engine on)', { { name = 'model' } })
+    TriggerEvent('chat:addSuggestion', '/fix', 'Repair and start the vehicle')
+    TriggerEvent('chat:addSuggestion', '/flip', 'Put the vehicle back on its wheels')
+    TriggerEvent('chat:addSuggestion', '/maxperf', 'Max out the vehicle performance mods')
+    TriggerEvent('chat:addSuggestion', '/dvall', 'Delete all unused vehicles (10s warning)')
+    TriggerEvent('chat:addSuggestion', '/setvw', 'Move a player to a virtual world', {
+        { name = 'sqlId' }, { name = 'virtualWorld', help = '0 = normal' } })
+    TriggerEvent('chat:addSuggestion', '/doorinfo', 'Aim at a door to get its model + coords')
 end)
 AddEventHandler('ph-core:client:playerLoaded', function()
     TriggerServerEvent('staff_menu:sv:reqNoclip')
@@ -449,40 +449,40 @@ RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
 
     if op == 'dv' then
         local veh = targetVehicle(8.0)
-        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        if veh == 0 then return nc_toast('No vehicle nearby.') end
         if veh == spawnedCar then spawnedCar = nil end
         deleteVeh(veh)
-        nc_toast('Vehicul sters.')
+        nc_toast('Vehicle deleted.')
 
     elseif op == 'fix' then
         local veh = targetVehicle(6.0)
-        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        if veh == 0 then return nc_toast('No vehicle nearby.') end
         fixVehicle(veh)
-        nc_toast('Vehicul reparat si pornit.')
+        nc_toast('Vehicle repaired and started.')
 
     elseif op == 'flip' then
         local veh = targetVehicle(6.0)
-        if veh == 0 then return nc_toast('Niciun vehicul in apropiere.') end
+        if veh == 0 then return nc_toast('No vehicle nearby.') end
         flipVehicle(veh)
-        nc_toast('Vehicul readus pe roti.')
+        nc_toast('Vehicle put back on its wheels.')
 
     elseif op == 'maxperf' then
         local veh = GetVehiclePedIsIn(ped, false)
-        if veh == 0 then return nc_toast('Trebuie sa fii intr-un vehicul.') end
+        if veh == 0 then return nc_toast('You must be in a vehicle.') end
         maxPerf(veh)
-        nc_toast('Performanta setata la maxim.')
+        nc_toast('Performance set to maximum.')
 
     elseif op == 'spawncar' then
         local model = tostring(arg or ''):lower()
         local hash = GetHashKey(model)
         if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
-            return nc_toast(('Model invalid: %s'):format(model))
+            return nc_toast(('Invalid model: %s'):format(model))
         end
         if spawnedCar and DoesEntityExist(spawnedCar) then deleteVeh(spawnedCar); spawnedCar = nil end
         RequestModel(hash)
         local t = 0
         while not HasModelLoaded(hash) and t < 200 do Wait(10); t = t + 1 end
-        if not HasModelLoaded(hash) then return nc_toast('Nu s-a putut incarca modelul.') end
+        if not HasModelLoaded(hash) then return nc_toast('Could not load the model.') end
 
         local c = GetEntityCoords(ped)
         local fwd = GetEntityForwardVector(ped)
@@ -497,7 +497,7 @@ RegisterNetEvent('staff_menu:cl:vehcmd', function(op, arg)
         SetVehicleDirtLevel(veh, 0.0)
         SetPedIntoVehicle(ped, veh, -1)
         spawnedCar = veh
-        nc_toast(('Spawnat: %s'):format(model))
+        nc_toast(('Spawned: %s'):format(model))
     end
 end)
 
@@ -641,7 +641,7 @@ local function reportDoor(ent)
     local cfg = ('{ name = \'\', model = %s, x = %.2f, y = %.2f, z = %.2f },'):format(m, oc.x + 0.0, oc.y + 0.0, oc.z + 0.0)
     print('[doorinfo] ' .. line)
     print('[doorinfo] ' .. cfg)
-    SendNUIMessage({ action = 'toast', text = line .. '  (copiat in consola F8)' })
+    SendNUIMessage({ action = 'toast', text = line .. '  (copied to F8 console)' })
 end
 
 RegisterNetEvent('staff_menu:cl:doorinfo', function()
@@ -657,8 +657,8 @@ RegisterNetEvent('staff_menu:cl:doorinfo', function()
             SetTextOutline(); SetTextCentre(true)
             BeginTextCommandDisplayText('STRING')
             AddTextComponentSubstringPlayerName(
-                ent and ('Uita-te la usa   ~b~[E]~w~ confirma   ~b~[Backspace]~w~ renunta')
-                    or  ('Nu ochesti nicio usa   ~b~[Backspace]~w~ renunta'))
+                ent and ('Look at the door   ~b~[E]~w~ confirm   ~b~[Backspace]~w~ cancel')
+                    or  ('Not aiming at any door   ~b~[Backspace]~w~ cancel'))
             EndTextCommandDisplayText(0.5, 0.86)
 
             if ent then
@@ -673,7 +673,7 @@ RegisterNetEvent('staff_menu:cl:doorinfo', function()
             if IsControlJustReleased(0, 177) or IsControlJustReleased(0, 322)  -- Backspace / Esc
                or GetGameTimer() - started > 25000 then
                 doorPicking = false
-                SendNUIMessage({ action = 'toast', text = 'doorinfo: anulat.' })
+                SendNUIMessage({ action = 'toast', text = 'doorinfo: cancelled.' })
             end
             Wait(0)
         end

@@ -41,7 +41,7 @@ function PH.FinalizeSpawn(char)
     local model = joaat(modelName)
 
     if not IsModelInCdimage(model) or not IsModelValid(model) then
-        print(('^1[ph-core] Model invalid: %s (%s) - pastrez modelul curent.^7'):format(modelName, model))
+        print(('^1[ph-core] Invalid model: %s (%s) - keeping the current model.^7'):format(modelName, model))
     else
         -- cerem repetat modelul; pe un joc cu mult DLC poate dura mult sa se incarce
         local waited = 0
@@ -58,7 +58,7 @@ function PH.FinalizeSpawn(char)
             SetModelAsNoLongerNeeded(model)
             Wait(100)   -- lasa noul ped sa se creeze inainte de PlayerPedId()
         else
-            print(('^1[ph-core] Modelul %s nu s-a incarcat in 20s - se pastreaza modelul implicit.^7'):format(modelName))
+            print(('^1[ph-core] Model %s did not load in 20s - keeping the default model.^7'):format(modelName))
         end
     end
 

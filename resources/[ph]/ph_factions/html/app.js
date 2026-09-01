@@ -21,9 +21,9 @@ function op(payload) { post('menu', payload); }
 function buildTabs() {
     const role = S.data.role || {};
     const tabs = [
-        { id: 'members', label: 'Membri', show: true },
-        { id: 'vehicles', label: 'Vehicule', show: !!S.data.faction },
-        { id: 'ranks', label: 'Rank-uri', show: !!S.data.faction && role.isLeader },
+        { id: 'members', label: 'Members', show: true },
+        { id: 'vehicles', label: 'Vehicles', show: !!S.data.faction },
+        { id: 'ranks', label: 'Ranks', show: !!S.data.faction && role.isLeader },
         { id: 'dev', label: 'Developer', show: !!role.isDev },
     ].filter((t) => t.show);
     if (!tabs.find((t) => t.id === S.tab)) S.tab = tabs[0] ? tabs[0].id : 'members';
@@ -71,13 +71,13 @@ function renderMembers() {
             <span class="grow"></span>
             <span class="acts">${memberActions(m)}</span>
         </div>`;
-    }).join('') || '<div class="muted">Niciun membru.</div>';
+    }).join('') || '<div class="muted">No members.</div>';
 
     $$('#members [data-a]').forEach((b) => b.onclick = () => {
         const a = b.dataset.a, u = Number(b.dataset.u);
         if (a === 'warn' || a === 'kick') {
-            const reason = prompt(a === 'warn' ? 'Motiv warn:' : 'Motiv kick:') || '';
-            if (a === 'kick' && !confirm('Sigur dai kick?')) return;
+            const reason = prompt(a === 'warn' ? 'Warn reason:' : 'Kick reason:') || '';
+            if (a === 'kick' && !confirm('Kick this player?')) return;
             op({ op: a, userId: u, reason });
         } else {
             op({ op: a, userId: u });
@@ -100,13 +100,13 @@ function renderVehicles() {
                 <span class="md"> — ${esc(v.model)}</span>
             </span>
             ${canEdit
-                ? `<input type="number" min="1" max="7" value="${v.minRank || 1}" data-vr="${v.id}" title="rank minim" />
-                   <button class="btn mini danger" data-vd="${v.id}">Sterge</button>`
+                ? `<input type="number" min="1" max="7" value="${v.minRank || 1}" data-vr="${v.id}" title="minimum rank" />
+                   <button class="btn mini danger" data-vd="${v.id}">Delete</button>`
                 : `<span class="md">rank ${v.minRank || 1}+</span>`}
-        </div>`).join('') || '<div class="muted">Niciun vehicul in aceasta categorie.</div>';
+        </div>`).join('') || '<div class="muted">No vehicles in this category.</div>';
 
     $$('#vehicles [data-vd]').forEach((b) => b.onclick = () => {
-        if (confirm('Stergi vehiculul?')) op({ op: 'removeVehicle', vehId: Number(b.dataset.vd) });
+        if (confirm('Delete this vehicle?')) op({ op: 'removeVehicle', vehId: Number(b.dataset.vd) });
     });
     $$('#vehicles [data-vr]').forEach((inp) => inp.onchange = () => {
         op({ op: 'setVehicleRank', vehId: Number(inp.dataset.vr), minRank: Number(inp.value) });
@@ -128,8 +128,8 @@ function renderRanks() {
 function renderDev() {
     const facs = S.data.allFactions || [];
     $('#dev-fac').innerHTML = facs.map((f) =>
-        `<option value="${f.id}">#${f.id} ${esc(f.name)}${f.active ? '' : ' (inactiv)'}</option>`).join('')
-        || '<option value="">— nicio factiune —</option>';
+        `<option value="${f.id}">#${f.id} ${esc(f.name)}${f.active ? '' : ' (inactive)'}</option>`).join('')
+        || '<option value="">— no faction —</option>';
     if (S.data.faction) {
         const cur = $('#dev-fac').querySelector(`option[value="${S.data.faction.id}"]`);
         if (cur) $('#dev-fac').value = S.data.faction.id;
@@ -141,7 +141,7 @@ function devFac() { return Number($('#dev-fac').value) || (S.data.faction && S.d
 function render() {
     if (!S.data) return;
     const fac = S.data.faction;
-    $('#f-name').textContent = fac ? fac.name : 'Fara factiune';
+    $('#f-name').textContent = fac ? fac.name : 'No faction';
     const role = S.data.role || {};
     const roleTxt = role.isLeader ? 'Leader' : role.rank === 6 ? 'Co-Leader'
         : role.supervisor ? 'Supervisor' : role.tester ? 'Tester'
@@ -163,7 +163,7 @@ $('#mem-search').addEventListener('input', (e) => { S.memSearch = e.target.value
 $('#recruit').onclick = async () => {
     const r = await post('nearestPlayer');
     if (r && r.serverId) op({ op: 'recruit', serverId: r.serverId });
-    else alert('Niciun jucator langa tine (5m).');
+    else alert('No player near you (5m).');
 };
 
 $$('.vcat').forEach((b) => b.onclick = () => { S.vcat = b.dataset.cat; renderVehicles(); });
@@ -185,7 +185,7 @@ $('#dev-create').onclick = () => {
     if (n.length >= 3) { op({ op: 'createFaction', name: n }); $('#dev-name').value = ''; }
 };
 $('#dev-delete').onclick = () => {
-    if (confirm('STERGI definitiv factiunea si scoti toti membrii?')) op({ op: 'deleteFaction', factionId: devFac() });
+    if (confirm('Permanently DELETE the faction and remove all members?')) op({ op: 'deleteFaction', factionId: devFac() });
 };
 $$('.dev-points button').forEach((b) => b.onclick = () =>
     op({ op: 'setPoint', factionId: devFac(), what: b.dataset.point }));
@@ -195,12 +195,12 @@ $('#dev-seed').onclick = () => op({ op: 'seedVanilla', factionId: devFac(), minR
 
 /* ---------------------------------------------------- garage */
 function renderGarage(d) {
-    $('#g-title').textContent = ({ car: 'Garaj Auto', heli: 'Helipad', boat: 'Doc Barci' })[d.category] || 'Garaj';
+    $('#g-title').textContent = ({ car: 'Car Garage', heli: 'Helipad', boat: 'Boat Dock' })[d.category] || 'Garage';
     $('#g-list').innerHTML = (d.list || []).map((v) => `
         <div class="grow-veh" data-id="${v.id}">
             <span>${esc(v.label)} <span class="md">(${esc(v.model)})</span></span>
             <span class="md">rank ${v.minRank || 1}+</span>
-        </div>`).join('') || '<div class="muted">Niciun vehicul disponibil pentru rank-ul tau.</div>';
+        </div>`).join('') || '<div class="muted">No vehicles available for your rank.</div>';
     $$('#g-list [data-id]').forEach((el) => el.onclick = () => {
         post('garagePick', { id: Number(el.dataset.id) });
         $('#garage').classList.add('hidden');

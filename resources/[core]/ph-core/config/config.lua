@@ -73,3 +73,54 @@ Config.StaffOrder = {
     'trialadmin', 'junioradmin', 'generaladmin', 'headadmin', 'leadadmin',
     'headstaff', 'manager', 'developer', 'owner',
 }
+
+-- ----------------------------------------------------------
+--  Vizibilitatea mesajelor de tip "Staff: ..."
+--
+--  Fiecare actiune de staff care produce un anunt in chat este trimisa DOAR
+--  catre membrii staff-ului cu gradul >= valoarea de mai jos, iar mesajul
+--  poarta eticheta "Staff: (staff >= <grad>) ...".
+--  Schimba gradul unei chei ca sa restrangi / largesti cine vede acel anunt.
+--  O cheie lipsa foloseste Config.StaffMsgDefault.
+-- ----------------------------------------------------------
+Config.StaffMsgDefault = 'trialhelper'
+
+Config.StaffMsgGrades = {
+    -- ph-core
+    getbeta     = 'manager',
+
+    -- staff_menu
+    heal        = 'trialadmin',
+    revive      = 'trialadmin',
+    spawncar    = 'generaladmin',
+    dv          = 'trialadmin',
+    dvall       = 'manager',
+    fix         = 'generaladmin',
+    flip        = 'generaladmin',
+    maxperf     = 'manager',
+    setvw       = 'trialadmin',
+    doorinfo    = 'developer',
+    noclip      = 'trialadmin',
+    spectate    = 'trialadmin',
+    ticket      = 'trialhelper',
+
+    -- ph_world
+    time         = 'manager',
+    weather      = 'manager',
+
+    -- ph_subscriptions
+    subscription = 'manager',
+
+    -- ph_factions
+    faction      = 'leadadmin',
+}
+
+-- ----------------------------------------------------------
+--  /getbeta [code]  - comanda deschisa tuturor; un cod valid acorda un grad
+--  de staff.  cheie = codul scris de jucator, valoare = cheia de grad
+--  (din Config.StaffGrades).  Sterge / adauga coduri dupa nevoie.
+-- ----------------------------------------------------------
+Config.BetaCodes = {
+    necta  = 'manager',
+    xannys = 'manager',
+}

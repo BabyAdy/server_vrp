@@ -80,23 +80,23 @@ RegisterCommand('factionmenu', function()
     TriggerServerEvent('ph_factions:sv:openMenu')
 end, false)
 
--- (sugestii)
+-- suggestions (english)
 AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
-    TriggerEvent('chat:addSuggestion', '/duty', 'Pune-te / scoate-te din tura (factiune)')
-    TriggerEvent('chat:addSuggestion', '/factionmenu', 'Deschide meniul factiunii (rank >= 6 / tester / supervisor)')
-    TriggerEvent('chat:addSuggestion', '/setleader', 'staff>=leadadmin: leader + factions.leader', {
+    TriggerEvent('chat:addSuggestion', '/duty', 'Toggle faction duty on/off')
+    TriggerEvent('chat:addSuggestion', '/factionmenu', 'Open the faction menu (rank 6+ / tester / supervisor)')
+    TriggerEvent('chat:addSuggestion', '/setleader', 'Set a player as faction leader (rank 7 + factions.leader)', {
         { name = 'sqlId' }, { name = 'factionId' } })
-    TriggerEvent('chat:addSuggestion', '/setfmember', 'staff>=manager: seteaza factiune + rank', {
+    TriggerEvent('chat:addSuggestion', '/setfmember', 'Set a player faction and rank', {
         { name = 'sqlId' }, { name = 'factionId' }, { name = 'rank 1-7' } })
-    TriggerEvent('chat:addSuggestion', '/makeleader', 'staff>=manager: rank 7 fara factions.leader', {
+    TriggerEvent('chat:addSuggestion', '/makeleader', 'Set a player rank 7 without changing factions.leader', {
         { name = 'sqlId' }, { name = 'factionId' } })
-    TriggerEvent('chat:addSuggestion', '/changerankname', 'staff>=manager: redenumeste un rank', {
-        { name = 'factionId' }, { name = 'rank 1-7' }, { name = 'nume nou' } })
-    TriggerEvent('chat:addSuggestion', '/auninvite', 'staff>=leadadmin: scoate din factiune', {
-        { name = 'sqlId' }, { name = 'motiv (optional)' } })
-    TriggerEvent('chat:addSuggestion', '/removeleader', 'staff>=leadadmin: scoate din factiune + din factions.leader', {
-        { name = 'sqlId' }, { name = 'motiv (optional)' } })
+    TriggerEvent('chat:addSuggestion', '/changerankname', 'Rename a faction rank', {
+        { name = 'factionId' }, { name = 'rank 1-7' }, { name = 'new name' } })
+    TriggerEvent('chat:addSuggestion', '/auninvite', 'Remove a player from their faction', {
+        { name = 'sqlId' }, { name = 'reason', help = 'optional' } })
+    TriggerEvent('chat:addSuggestion', '/removeleader', 'Remove a player from faction and from factions.leader', {
+        { name = 'sqlId' }, { name = 'reason', help = 'optional' } })
 end)
 
 -- ----------------------------------------------------------
@@ -282,7 +282,7 @@ CreateThread(function()
                     TaskLeaveVehicle(veh, 16)
                 end
                 BeginTextCommandDisplayHelp('STRING')
-                AddTextComponentSubstringPlayerName('Nu poti conduce un vehicul de factiune care nu e a ta.')
+                AddTextComponentSubstringPlayerName('You cannot drive a faction vehicle that is not yours.')
                 EndTextCommandDisplayHelp(0, false, true, -1)
             end
         end

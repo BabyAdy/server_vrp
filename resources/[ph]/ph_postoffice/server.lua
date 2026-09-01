@@ -29,11 +29,11 @@ CreateThread(function()
     while GetResourceState(PH) ~= 'started' do Wait(200) end
     local ok, err = pcall(function() MySQL.query.await(SCHEMA) end)
     if not ok then
-        print('^1[ph_postoffice] eroare init DB:^7 ' .. tostring(err))
+        print('^1[ph_postoffice] DB init error:^7 ' .. tostring(err))
         return
     end
     ready = true
-    print('^5[ph_postoffice]^7 pregatit.')
+    print('^5[ph_postoffice]^7 ready.')
 end)
 
 -- ----------------------------------------------------------
@@ -51,6 +51,12 @@ local function notify(src, text, color)
     else
         TriggerClientEvent('chat:addMessage', src, { args = { text } })
     end
+end
+
+--- notificare simpla deasupra minimapului (feedback marunt)
+local function toast(src, text, kind)
+    if not src then return end
+    exports[PH]:Notify(src, text, kind or 'info')
 end
 
 local function itemLabel(name)
@@ -81,7 +87,7 @@ exports('Deposit', function(userId, item, reason)
     )
     local s = srcOf(userId)
     if s then
-        notify(s, ('Post Office: %dx %s pus deoparte%s. Scrie /po pentru a revendica.')
+        notify(s, ('Post Office: %dx %s set aside%s. Type /po to claim.')
             :format(count, itemLabel(item.name), reason and (' (' .. reason .. ')') or ''), '#e0c07a')
     end
     return true
@@ -101,7 +107,7 @@ local function claim(userId, src)
     userId = tonumber(userId)
     if not userId then return 0 end
     if not ready then
-        if src then notify(src, 'Post Office se initializeaza, incearca din nou.', '#e07a7a') end
+        if src then toast(src, 'Post Office is still initializing, try again.', 'warning') end
         return 0
     end
 
@@ -110,7 +116,7 @@ local function claim(userId, src)
         { userId }) or {}
 
     if #rows == 0 then
-        if src then notify(src, 'Post Office gol.', '#e0c07a') end
+        if src then toast(src, 'Post Office is empty.', 'info') end
         return 0
     end
 
@@ -136,10 +142,10 @@ local function claim(userId, src)
 
     if src then
         if given > 0 then
-            notify(src, ('Ai revendicat %d pachet(e) din Post Office%s.')
-                :format(given, blocked and ' (restul nu a incaput)' or ''), '#8ce07a')
+            notify(src, ('You claimed %d package(s) from the Post Office%s.')
+                :format(given, blocked and ' (the rest did not fit)' or ''), '#8ce07a')
         else
-            notify(src, 'Nu ai loc in inventar pentru itemele din Post Office.', '#e07a7a')
+            toast(src, 'Not enough inventory space for your Post Office items.', 'error')
         end
     end
     return given
@@ -153,7 +159,7 @@ end)
 --  Comenzi
 -- ----------------------------------------------------------
 local function doPostoffice(src, args)
-    if src == 0 then print('[ph_postoffice] foloseste comanda in joc.') return end
+    if src == 0 then print('[ph_postoffice] use this command in-game.') return end
     local uid = exports[PH]:GetUserId(src)
     if not uid then return end
 
@@ -161,8 +167,8 @@ local function doPostoffice(src, args)
         local rows = MySQL.query.await(
             'SELECT name, count, reason, created_at FROM post_office_items WHERE user_id = ? AND claimed_at IS NULL ORDER BY id ASC LIMIT 50',
             { uid }) or {}
-        if #rows == 0 then return notify(src, 'Post Office gol.', '#e0c07a') end
-        notify(src, ('Post Office (%d pachet(e)):'):format(#rows), '#b98cff')
+        if #rows == 0 then return toast(src, 'Post Office is empty.', 'info') end
+        notify(src, ('Post Office (%d package(s)):'):format(#rows), '#b98cff')
         for _, r in ipairs(rows) do
             notify(src, (' - %dx %s%s'):format(r.count, itemLabel(r.name), r.reason and (' — ' .. r.reason) or ''), '#cfc9e6')
         end
@@ -177,11 +183,11 @@ RegisterCommand('po', function(src, args) doPostoffice(src, args) end, false)
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     if GetResourceState('ph_chat') == 'started' then
-        TriggerClientEvent('chat:addSuggestion', -1, '/po', 'Revendica itemele din Post Office', {})
-        TriggerClientEvent('chat:addSuggestion', -1, '/postoffice', 'Post Office: "list" sau revendica', { { name = 'list', help = 'optional' } })
+        TriggerClientEvent('chat:addSuggestion', -1, '/po', 'Claim your Post Office items', {})
+        TriggerClientEvent('chat:addSuggestion', -1, '/postoffice', 'Post Office: claim, or "list" to view', { { name = 'list', help = 'optional' } })
     end
 end)
 
 AddEventHandler('ph-core:playerLoaded', function(src)
-    TriggerClientEvent('chat:addSuggestion', src, '/po', 'Revendica itemele din Post Office', {})
+    TriggerClientEvent('chat:addSuggestion', src, '/po', 'Claim your Post Office items', {})
 end)

@@ -99,13 +99,13 @@ CreateThread(function()
         for _, q in ipairs(SCHEMA) do MySQL.query.await(q) end
     end)
     if not ok then
-        print('^1[staff_menu] eroare la initializarea bazei de date:^7 ' .. tostring(err))
+        print('^1[staff_menu] database init error:^7 ' .. tostring(err))
         return
     end
 
     loadBans()
     ready = true
-    print('^5[staff_menu]^7 pregatit.')
+    print('^5[staff_menu]^7 ready.')
 end)
 
 -- ----------------------------------------------------------
@@ -134,6 +134,14 @@ local function can(src, permKey)
     return exports[PH_CORE]:HasStaffRank(src, need) == true
 end
 
+--- can() + trimite "ERROR: insufficient permission ( #grad )" daca nu are
+local function requirePerm(src, permKey)
+    if src == 0 then return true end
+    if can(src, permKey) then return true end
+    exports[PH_CORE]:CmdPermError(src, Config.Perms[permKey] or permKey)
+    return false
+end
+
 local function notify(src, text, color)
     if not src then return end
     if GetResourceState('ph_chat') == 'started' then
@@ -143,14 +151,24 @@ local function notify(src, text, color)
     end
 end
 
+--- feedback marunt pentru staff-ul care a rulat actiunea -> deasupra minimapului
+local function toast(src, text, kind)
+    if not src or src == 0 then print('[staff_menu] ' .. tostring(text)); return end
+    exports[PH_CORE]:Notify(src, text, kind or 'info')
+end
+
 local function publics() return exports[PH_CORE]:GetPublicPlayers() or {} end
 
+--- anunt catre tot staff-ul cu gradul >= minKey.
+--- mesajul e prefixat "Staff: (staff >= <grad>) ..." ca sa fie clar
+--- pentru cine e vizibil; schimba `minKey` (Config.*) ca sa restrangi audienta.
 local function notifyStaff(text, color, minKey)
     minKey = minKey or Config.MinGrade
+    local tagged = ('Staff: (staff >= %s) %s'):format(minKey, text)
     for psrc in pairs(publics()) do
         psrc = tonumber(psrc)
         if exports[PH_CORE]:HasStaffRank(psrc, minKey) then
-            notify(psrc, text, color)
+            notify(psrc, tagged, color)
         end
     end
 end
@@ -217,11 +235,11 @@ local function staffNotice(kind, userId, username, gradeKey, reason)
 
     local msg
     if kind == 'connect' then
-        msg = ('Staff Notice: [%s] %s has connected to the server!'):format(gradeLabel, username)
+        msg = ('[%s] %s has connected to the server!'):format(gradeLabel, username)
     elseif kind == 'crash' then
-        msg = ('Staff Notice: [%s] %s was disconnected from the server! [Reason: Crash]'):format(gradeLabel, username)
+        msg = ('[%s] %s was disconnected from the server! [Reason: Crash]'):format(gradeLabel, username)
     else
-        msg = ('Staff Notice: [%s] %s has disconnected from the server!'):format(gradeLabel, username)
+        msg = ('[%s] %s has disconnected from the server!'):format(gradeLabel, username)
     end
 
     notifyStaff(msg, '#c9a3ff', Config.NoticeMinGrade or 'trialhelper')
@@ -264,7 +282,7 @@ end
 -- ----------------------------------------------------------
 RegisterNetEvent('staff_menu:sv:open', function()
     local src = source
-    if not ready then return notify(src, 'staff_menu se initializeaza...', '#e07a7a') end
+    if not ready then return toast(src, 'Staff menu is initializing...', 'warning') end
     if not exports[PH_CORE]:HasStaffRank(src, Config.MinGrade) then return end
 
     local sc = charOf(src)
@@ -320,8 +338,8 @@ RegisterNetEvent('staff_menu:sv:ticket', function(p)
         if aff and aff > 0 then
             local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
             local psrc = t and srcByUserId(t.user_id)
-            if psrc then notify(psrc, ('Tichetul tau #%s a fost preluat de %s.'):format(id, sc.username), '#8ce07a') end
-            notifyStaff(('%s a acceptat tichetul #%s.'):format(sc.username, id), '#a89bc7')
+            if psrc then notify(psrc, ('Your ticket #%s was picked up by %s.'):format(id, sc.username), '#8ce07a') end
+            notifyStaff(('%s accepted ticket #%s.'):format(sc.username, id), '#a89bc7')
             logAction(src, 'ticket_accept', nil, nil, '#' .. id)
         end
         pushTickets(src); pushActive(src)
@@ -331,7 +349,7 @@ RegisterNetEvent('staff_menu:sv:ticket', function(p)
             "UPDATE tickets SET status='closed', closed_at=NOW() WHERE id=? AND status<>'closed'", { id })
         local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
         local psrc = t and srcByUserId(t.user_id)
-        if psrc then notify(psrc, ('Tichetul tau #%s a fost inchis.'):format(id), '#e0c07a') end
+        if psrc then notify(psrc, ('Your ticket #%s was closed.'):format(id), '#e0c07a') end
         logAction(src, 'ticket_close', nil, nil, '#' .. id)
         pushTickets(src); pushActive(src)
     elseif op == 'reply' then
@@ -344,13 +362,13 @@ RegisterNetEvent('staff_menu:sv:ticket', function(p)
         MySQL.update.await('UPDATE tickets SET updated_at=NOW() WHERE id=?', { id })
         local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
         local psrc = t and srcByUserId(t.user_id)
-        if psrc then notify(psrc, ('[Tichet #%s] %s: %s'):format(id, sc.username, text), '#b98cff') end
+        if psrc then notify(psrc, ('[Ticket #%s] %s: %s'):format(id, sc.username, text), '#b98cff') end
         logAction(src, 'ticket_reply', nil, nil, '#' .. id)
     elseif op == 'goto' then
         local id = tonumber(p.id); if not id then return end
         local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
         local psrc = t and srcByUserId(t.user_id)
-        if not psrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+        if not psrc then return toast(src, 'The player is not online.', 'error') end
         local c = GetEntityCoords(GetPlayerPed(psrc))
         TriggerClientEvent('staff_menu:cl:teleport', src, { x = c.x, y = c.y, z = c.z })
     end
@@ -367,7 +385,7 @@ end
 RegisterCommand('ticket', function(src, args)
     if src == 0 then return end
     local char = charOf(src)
-    if not char then return notify(src, 'Nu esti autentificat.', '#e07a7a') end
+    if not char then return notify(src, 'You are not authenticated.', '#e07a7a') end
 
     local category = 'general'
     if args[1] and inList(Config.TicketCategories, args[1]:lower()) then
@@ -375,23 +393,23 @@ RegisterCommand('ticket', function(src, args)
     end
     local msg = table.concat(args, ' '):gsub('^%s+', ''):gsub('%s+$', '')
     if #msg < 3 then
-        return notify(src, 'Foloseste: /ticket [categorie] <mesajul tau>', '#e07a7a')
+        return exports[PH_CORE]:CmdSyntax(src, '/ticket [category] [message]')
     end
 
-    if not ready then return notify(src, 'Sistemul de tickete nu e pregatit.', '#e07a7a') end
+    if not ready then return notify(src, 'The ticket system is not ready.', '#e07a7a') end
 
     local open = MySQL.scalar.await(
         "SELECT id FROM tickets WHERE user_id = ? AND status IN ('open','active') LIMIT 1", { char.id })
     if open then
-        return notify(src, ('Ai deja un tichet deschis (#%s).'):format(open), '#e0c07a')
+        return notify(src, ('You already have an open ticket (#%s).'):format(open), '#e0c07a')
     end
 
     local id = MySQL.insert.await(
         'INSERT INTO tickets (user_id, username, category, message) VALUES (?,?,?,?)',
         { char.id, char.username, category, msg:sub(1, 500) })
 
-    notify(src, ('Tichet #%s creat (%s). Un membru al staff-ului te va contacta.'):format(id, category), '#8ce07a')
-    notifyStaff(('[TICHET] #%s (%s) de la %s [ID: %s]: %s'):format(
+    notify(src, ('Ticket #%s created (%s). A staff member will contact you.'):format(id, category), '#8ce07a')
+    notifyStaff(('[TICKET] #%s (%s) from %s [ID: %s]: %s'):format(
         id, category, char.username, char.id, msg:sub(1, 120)), '#b98cff')
 end, false)
 
@@ -404,9 +422,7 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
     p = p or {}
     local action = p.action
     if not action or not Config.Perms[action] then return end
-    if not can(src, action) then
-        return notify(src, 'Nu ai permisiunea pentru aceasta actiune.', '#e07a7a')
-    end
+    if not requirePerm(src, action) then return end
 
     local sc = charOf(src)
     if not sc then return end
@@ -416,12 +432,12 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         local text = tostring(p.text or ''):sub(1, 300)
         if #text < 2 then return end
         if GetResourceState('ph_chat') == 'started' then
-            exports['ph_chat']:send(-1, { prefix = 'ANUNT', prefixColor = '#b98cff', text = text, textColor = '#ffffff' })
+            exports['ph_chat']:send(-1, { prefix = 'ANNOUNCEMENT', prefixColor = '#b98cff', text = text, textColor = '#ffffff' })
         else
-            TriggerClientEvent('chatMessage', -1, '[ANUNT]', text)
+            TriggerClientEvent('chatMessage', -1, '[ANNOUNCEMENT]', text)
         end
         logAction(src, 'announce', nil, nil, text)
-        return TriggerClientEvent('staff_menu:cl:result', src, { ok = true, msg = 'Anunt trimis.' })
+        return TriggerClientEvent('staff_menu:cl:result', src, { ok = true, msg = 'Announcement sent.' })
     end
 
     if action == 'unban' then
@@ -432,11 +448,11 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         elseif lic ~= '' then
             MySQL.update.await('UPDATE bans SET active=0 WHERE license=? AND active=1', { lic })
         else
-            return notify(src, 'Da un ID de ban sau o licenta.', '#e07a7a')
+            return toast(src, 'Provide a ban ID or a license.', 'error')
         end
         loadBans()
         logAction(src, 'unban', nil, nil, id and ('#' .. id) or lic)
-        return TriggerClientEvent('staff_menu:cl:result', src, { ok = true, msg = 'Unban aplicat.' })
+        return TriggerClientEvent('staff_menu:cl:result', src, { ok = true, msg = 'Unban applied.' })
     end
 
     -- actiuni cu tinta online (identificata prin SQL id = users.id)
@@ -444,10 +460,10 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
     local tSrc  = srcByUserId(tId)
     local tChar = tSrc and charOf(tSrc) or nil
     if not tId or not tSrc or not tChar then
-        return notify(src, 'Jucatorul nu este online.', '#e07a7a')
+        return toast(src, 'The player is not online.', 'error')
     end
     if tSrc ~= src and rankIdx(tSrc) > 0 and rankIdx(tSrc) >= rankIdx(src) then
-        return notify(src, 'Nu poti aplica asta pe un staff de rang egal sau superior.', '#e07a7a')
+        return toast(src, 'You cannot use that on staff of equal or higher rank.', 'error')
     end
 
     local reason = tostring(p.reason or ''):sub(1, 300)
@@ -459,7 +475,7 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
     elseif action == 'bring_player' then
         local c = GetEntityCoords(GetPlayerPed(src))
         TriggerClientEvent('staff_menu:cl:teleport', tSrc, { x = c.x, y = c.y, z = c.z })
-        notify(tSrc, 'Ai fost adus de un membru al staff-ului.', '#e0c07a')
+        notify(tSrc, 'You were brought by a staff member.', '#e0c07a')
 
     elseif action == 'spectate' then
         TriggerClientEvent('staff_menu:cl:spectate', src, tSrc)
@@ -467,30 +483,30 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
     elseif action == 'freeze' then
         frozen[tId] = not frozen[tId]
         TriggerClientEvent('staff_menu:cl:freeze', tSrc, frozen[tId] == true)
-        notify(src, ('%s a fost %s.'):format(tChar.username, frozen[tId] and 'inghetat' or 'dezghetat'), '#8ce07a')
+        toast(src, ('%s was %s.'):format(tChar.username, frozen[tId] and 'frozen' or 'unfrozen'), 'success')
 
     elseif action == 'revive' then
         TriggerClientEvent('staff_menu:cl:revive', tSrc)
-        notify(src, ('%s a fost resuscitat.'):format(tChar.username), '#8ce07a')
+        toast(src, ('%s was revived.'):format(tChar.username), 'success')
 
     elseif action == 'heal' then
         TriggerClientEvent('staff_menu:cl:heal', tSrc)
-        notify(src, ('%s a fost vindecat.'):format(tChar.username), '#8ce07a')
+        toast(src, ('%s was healed.'):format(tChar.username), 'success')
 
     elseif action == 'warn' then
-        if #reason < 2 then return notify(src, 'Motiv prea scurt.', '#e07a7a') end
+        if #reason < 2 then return toast(src, 'Reason too short.', 'error') end
         MySQL.insert('INSERT INTO warns (user_id, username, reason, warned_by, warned_by_name) VALUES (?,?,?,?,?)',
             { tChar.id, tChar.username, reason, sc.id, sc.username })
-        notify(tSrc, ('AVERTISMENT de la %s: %s'):format(sc.username, reason), '#ff5a5a')
-        notifyStaff(('%s a dat warn lui %s [ID:%s]: %s'):format(sc.username, tChar.username, tChar.id, reason), '#e0c07a')
+        notify(tSrc, ('WARNING from %s: %s'):format(sc.username, reason), '#ff5a5a')
+        notifyStaff(('%s warned %s [ID:%s]: %s'):format(sc.username, tChar.username, tChar.id, reason), '#e0c07a')
 
     elseif action == 'kick' then
-        if #reason < 2 then reason = 'nespecificat' end
-        notifyStaff(('%s a dat kick lui %s [ID:%s]: %s'):format(sc.username, tChar.username, tChar.id, reason), '#e0c07a')
-        DropPlayer(tSrc, ('Kick de %s\nMotiv: %s'):format(sc.username, reason))
+        if #reason < 2 then reason = 'unspecified' end
+        notifyStaff(('%s kicked %s [ID:%s]: %s'):format(sc.username, tChar.username, tChar.id, reason), '#e0c07a')
+        DropPlayer(tSrc, ('Kicked by %s\nReason: %s'):format(sc.username, reason))
 
     elseif action == 'ban' then
-        if #reason < 2 then return notify(src, 'Motiv prea scurt.', '#e07a7a') end
+        if #reason < 2 then return toast(src, 'Reason too short.', 'error') end
         local days = math.floor(tonumber(p.days) or 0)
         if days < 0 then days = 0 end
         if days > Config.MaxBanDays then days = Config.MaxBanDays end
@@ -503,11 +519,11 @@ RegisterNetEvent('staff_menu:sv:action', function(p)
         if license then
             banCache[license] = { id = id, reason = reason, expires_at = expires }
         end
-        notifyStaff(('%s a banat pe %s [ID:%s] (%s): %s'):format(
-            sc.username, tChar.username, tChar.id, days > 0 and (days .. ' zile') or 'permanent', reason), '#ff5a5a')
-        DropPlayer(tSrc, ('BANAT de %s\nMotiv: %s\n%s\nID ban: #%s'):format(
+        notifyStaff(('%s banned %s [ID:%s] (%s): %s'):format(
+            sc.username, tChar.username, tChar.id, days > 0 and (days .. ' days') or 'permanent', reason), '#ff5a5a')
+        DropPlayer(tSrc, ('BANNED by %s\nReason: %s\n%s\nBan ID: #%s'):format(
             sc.username, reason,
-            expires and ('Expira: ' .. os.date('%d.%m.%Y %H:%M', expires)) or 'Permanent', id))
+            expires and ('Expires: ' .. os.date('%d.%m.%Y %H:%M', expires)) or 'Permanent', id))
     end
 
     logAction(src, action, tChar.username, tChar.id, p.reason or p.days)
@@ -530,16 +546,16 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
         local grade = tostring(p.grade or '')
         local tSrc  = srcByUserId(tId)
         local tChar = tSrc and charOf(tSrc)
-        if not tChar then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+        if not tChar then return toast(src, 'The player is not online.', 'error') end
 
         local grades = exports[PH_CORE]:GetStaffGrades() or {}
-        if grade ~= '' and not grades[grade] then return notify(src, 'Grad invalid.', '#e07a7a') end
+        if grade ~= '' and not grades[grade] then return toast(src, 'Invalid grade.', 'error') end
         if grade ~= '' and exports[PH_CORE]:StaffRankOf(grade) >= rankIdx(src) then
-            return notify(src, 'Nu poti acorda un grad egal sau superior tie.', '#e07a7a')
+            return toast(src, 'You cannot grant a grade equal to or higher than yours.', 'error')
         end
 
         local ok = exports[PH_CORE]:SetStaff(tSrc, grade)
-        notify(src, ok and ('Grad setat: %s -> %q'):format(tChar.username, grade) or 'Eroare.', ok and '#8ce07a' or '#e07a7a')
+        toast(src, ok and ('Grade set: %s -> %q'):format(tChar.username, grade) or 'Error.', ok and 'success' or 'error')
         logAction(src, 'set_staff', tChar.username, tChar.id, grade)
         if ok then pushNoclip(tSrc) end   -- re-evalueaza dreptul de noclip
         TriggerClientEvent('staff_menu:cl:result', src, { ok = ok })
@@ -547,15 +563,15 @@ RegisterNetEvent('staff_menu:sv:dev', function(p)
     elseif p.op == 'restart_resource' then
         if not can(src, 'restart_resource') then return end
         local rname = tostring(p.name or ''):match('^[%w_%-]+$')
-        if not rname then return notify(src, 'Nume de resursa invalid.', '#e07a7a') end
+        if not rname then return toast(src, 'Invalid resource name.', 'error') end
         ExecuteCommand(('ensure %s'):format(rname))
-        notify(src, ('ensure %s trimis.'):format(rname), '#8ce07a')
+        toast(src, ('ensure %s sent.'):format(rname), 'success')
         logAction(src, 'restart_resource', nil, nil, rname)
 
     elseif p.op == 'tp_coords' then
         if not can(src, 'tp_coords') then return end
         local x, y, z = tonumber(p.x), tonumber(p.y), tonumber(p.z)
-        if not (x and y and z) then return notify(src, 'Coordonate invalide.', '#e07a7a') end
+        if not (x and y and z) then return toast(src, 'Invalid coordinates.', 'error') end
         TriggerClientEvent('staff_menu:cl:teleport', src, { x = x, y = y, z = z })
 
     elseif p.op == 'server_info' then
@@ -644,14 +660,12 @@ end)
 --    fara argument -> pe tine ; cu <sqlId> -> pe jucatorul respectiv (online)
 -- ----------------------------------------------------------
 local function healTarget(src, args, action)
-    if not can(src, action) then
-        return notify(src, 'Nu ai permisiunea pentru aceasta actiune.', '#e07a7a')
-    end
+    if not requirePerm(src, action) then return end
     local tSrc = src
     if args[1] then
         local uid = tonumber(args[1])
         tSrc = uid and srcByUserId(uid) or nil
-        if not tSrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+        if not tSrc then return toast(src, 'The player is not online.', 'error') end
     end
 
     TriggerClientEvent('staff_menu:cl:' .. action, tSrc)
@@ -660,13 +674,13 @@ local function healTarget(src, args, action)
     logRaw(sc and sc.id, sc and sc.username, action, tc and ('target %s'):format(tc.id) or 'self')
 
     if tSrc == src then
-        notify(src, action == 'heal' and 'Te-ai vindecat (100% HP).' or 'Te-ai resuscitat (100% HP).', '#8ce07a')
+        toast(src, action == 'heal' and 'You healed yourself (100% HP).' or 'You revived yourself (100% HP).', 'success')
     else
-        notify(src, ('%s: %s (100%% HP).'):format(tc and tc.username or ('#' .. args[1]),
-            action == 'heal' and 'vindecat' or 'resuscitat'), '#8ce07a')
+        toast(src, ('%s: %s (100%% HP).'):format(tc and tc.username or ('#' .. args[1]),
+            action == 'heal' and 'healed' or 'revived'), 'success')
         notify(tSrc, action == 'heal'
-            and 'Ai fost vindecat de un membru al staff-ului.'
-            or  'Ai fost resuscitat de un membru al staff-ului.', '#8ce07a')
+            and 'You were healed by a staff member.'
+            or  'You were revived by a staff member.', '#8ce07a')
     end
 end
 
@@ -684,9 +698,7 @@ RegisterCommand('revive', function(src, args) if src ~= 0 then healTarget(src, a
 -- ----------------------------------------------------------
 local function vehCmd(src, perm, op, arg)
     if src == 0 then return end
-    if not can(src, perm) then
-        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
-    end
+    if not requirePerm(src, perm) then return end
     TriggerClientEvent('staff_menu:cl:vehcmd', src, op, arg)
     local sc = charOf(src)
     logRaw(sc and sc.id, sc and sc.username, 'veh_' .. op, arg)
@@ -698,7 +710,7 @@ RegisterCommand('flip',    function(src)       vehCmd(src, 'flip', 'flip') end, 
 RegisterCommand('maxperf', function(src)       vehCmd(src, 'maxperf', 'maxperf') end, false)
 RegisterCommand('spawncar', function(src, args)
     local model = tostring(args[1] or ''):gsub('%s', ''):lower()
-    if model == '' then return notify(src, 'uz: /spawncar <model>', '#e0c07a') end
+    if model == '' then return exports[PH_CORE]:CmdSyntax(src, '/spawncar [model]') end
     vehCmd(src, 'spawncar', 'spawncar', model)
 end, false)
 
@@ -707,40 +719,34 @@ end, false)
 --    virtual world = routing bucket (0 = lumea normala)
 -- ----------------------------------------------------------
 RegisterCommand('setvw', function(src, args)
-    if src ~= 0 and not can(src, 'setvw') then
-        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
-    end
+    if not requirePerm(src, 'setvw') then return end
     local uid = tonumber(args[1])
     local vw  = tonumber(args[2])
     if not uid or not vw then
-        return notify(src, 'uz: /setvw <sqlId> <virtualWorld>', '#e0c07a')
+        return exports[PH_CORE]:CmdSyntax(src, '/setvw [sqlId] [virtualWorld]')
     end
     local tSrc = srcByUserId(uid)
-    if not tSrc then return notify(src, 'Jucatorul nu este online.', '#e07a7a') end
+    if not tSrc then return toast(src, 'The player is not online.', 'error') end
     vw = math.max(0, math.floor(vw))
     SetPlayerRoutingBucket(tSrc, vw)
     TriggerClientEvent('staff_menu:cl:refreshDoors', tSrc)   -- re-incuie usile in noul virtual world
     local sc, tc = charOf(src), charOf(tSrc)
     logRaw(sc and sc.id, sc and sc.username, 'setvw', ('%s -> vw %d'):format(tc and tc.id or uid, vw))
-    notify(src, ('%s -> virtual world %d.'):format(tc and tc.username or ('#' .. uid), vw), '#8ce07a')
-    notify(tSrc, ('Ai fost mutat in virtual world %d de un membru al staff-ului.'):format(vw), '#e0c07a')
+    toast(src, ('%s -> virtual world %d.'):format(tc and tc.username or ('#' .. uid), vw), 'success')
+    notify(tSrc, ('You were moved to virtual world %d by a staff member.'):format(vw), '#e0c07a')
 end, false)
 
 -- /doorinfo -> pe clientul apelantului: afiseaza model + coords ale usii din apropiere
 RegisterCommand('doorinfo', function(src)
     if src == 0 then return end
-    if not can(src, 'doorinfo') then
-        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
-    end
+    if not requirePerm(src, 'doorinfo') then return end
     TriggerClientEvent('staff_menu:cl:doorinfo', src)
 end, false)
 
 RegisterCommand('dvall', function(src)
-    if src ~= 0 and not can(src, 'dvall') then
-        return notify(src, 'Nu ai permisiunea pentru aceasta comanda.', '#e07a7a')
-    end
+    if not requirePerm(src, 'dvall') then return end
     local delay = Config.DvallDelaySec or 10
-    local msg = ('STAFF: In %d secunde toate vehiculele neutilizate vor fi sterse!'):format(delay)
+    local msg = ('STAFF: All unused vehicles will be deleted in %d seconds!'):format(delay)
     if GetResourceState('ph_chat') == 'started' then
         exports['ph_chat']:send(-1, { prefix = 'STAFF', prefixColor = '#ff5a5a', text = msg:gsub('^STAFF: ', ''), textColor = '#ffd6d6' })
     else

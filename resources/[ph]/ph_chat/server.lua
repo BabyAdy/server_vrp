@@ -212,16 +212,12 @@ RegisterCommand('pc', function(src, args)
         pcall(function() tier = exports['ph_subscriptions']:GetActiveTier(uid) end)
     end
     if not staff and not tier then
-        return TriggerClientEvent('ph_chat:receive', src, {
-            stamp = roStamp(),
-            text = 'Ai nevoie de un abonament activ sau de un grad de staff pentru Premium Chat.',
-            textColor = '#e07a7a',
-        })
+        exports[PH]:CmdSubError(src)
+        return
     end
     if msg == '' then
-        return TriggerClientEvent('ph_chat:receive', src, {
-            stamp = roStamp(), text = 'Foloseste: /pc [mesaj]', textColor = '#e07a7a',
-        })
+        exports[PH]:CmdSyntax(src, '/pc [message]')
+        return
     end
 
     -- eticheta + culoarea ei
@@ -233,11 +229,11 @@ RegisterCommand('pc', function(src, args)
     else
         local ti = exports['ph_subscriptions']:GetTierInfo(tier) or {}
         tagText  = ti.label or tier
-        tagColor = ti.color or '#FCD600'
+        tagColor = ti.color or '#8c00ff'
     end
 
     local name = GetPlayerName(src) or ('Player_' .. src)
-    local body = Config.PremiumChat.TextColor or '#E7C84B'
+    local body = Config.PremiumChat.TextColor or '#8c00ff'
     local payload = {
         stamp = roStamp(),
         segments = {
@@ -276,7 +272,7 @@ AddEventHandler('ph-core:playerLoaded', function(src, char)
     -- anunt public
     TriggerClientEvent('ph_chat:receive', -1, {
         stamp = roStamp(),
-        text = ('%s [ID: %s] s-a conectat.'):format(
+        text = ('%s [ID: %s] has connected.'):format(
             (char and char.username) or GetPlayerName(src) or src, uid or '?'),
         textColor = '#8ce07a',
     })
@@ -308,12 +304,12 @@ AddEventHandler('ph-core:playerLoaded', function(src, char)
     end
 
     if isStaff(src) then
-        line('Staff: loading permissions...', '#9a93b8')
+        line('Staff: loading permissions...', '#7f30ff')
         SetTimeout(700, function()
             local pub = exports[PH]:GetPublicPlayer(src)
             local key = pub and pub.staff
             if key and key ~= '' then
-                seg({ { t = 'Staff: ', c = '#9a93b8' }, { t = '#' .. key, c = (pub.staffColor or '#37ff00') }, { t = ' permission = true', c = '#37ff00' } })
+                seg({ { t = 'Staff: ', c = '#7f30ff' }, { t = '#' .. key, c = (pub.staffColor or '#37ff00') }, { t = ' permission = true', c = '#37ff00' } })
             end
         end)
     end
@@ -323,7 +319,7 @@ AddEventHandler('playerDropped', function(reason)
     local src = source
     TriggerClientEvent('ph_chat:receive', -1, {
         stamp = roStamp(),
-        text = ('%s s-a deconectat (%s)'):format(
+        text = ('%s has disconnected (%s)'):format(
             GetPlayerName(src) or ('Player_' .. src), reason or 'quit'),
         textColor = '#e07a7a',
     })
@@ -333,7 +329,7 @@ end)
 
 -- sugestii de comenzi
 AddEventHandler('ph-core:playerLoaded', function(src)
-    TriggerClientEvent('chat:addSuggestion', src, '/pc', 'Premium Chat (abonati / staff)', { { name = 'mesaj' } })
+    TriggerClientEvent('chat:addSuggestion', src, '/pc', 'Premium Chat (subscribers / staff)', { { name = 'message' } })
 end)
 
 -- ----------------------------------------------------------

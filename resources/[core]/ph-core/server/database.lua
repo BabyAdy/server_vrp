@@ -68,13 +68,13 @@ CreateThread(function()
     end)
 
     if not ok then
-        print('^1[ph-core] EROARE la initializarea bazei de date:^7 ' .. tostring(err))
+        print('^1[ph-core] ERROR initializing the database:^7 ' .. tostring(err))
         print('^1[ph-core] Verifica `set mysql_connection_string` din server.cfg.^7')
         return
     end
 
     PH.DB.ready = true
-    PH.Log('Baza de date este pregatita (tabel `users`).')
+    PH.Log('Database is ready (table `users`).')
 end)
 
 exports('IsDatabaseReady', function()

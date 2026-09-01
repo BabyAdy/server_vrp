@@ -64,7 +64,7 @@ RegisterNetEvent('ph-core:auth:requestState', function()
     local src = source
 
     if not PH.DB.ready then
-        authFail(src, 'Serverul inca se initializeaza. Incearca din nou in cateva secunde.')
+        authFail(src, 'The server is still starting up. Try again in a few seconds.')
         return
     end
 
@@ -77,7 +77,7 @@ RegisterNetEvent('ph-core:auth:requestState', function()
 
     local license = getLicense(src)
     if not license then
-        DropPlayer(src, 'Nu s-a putut identifica licenta ta FiveM/Rockstar.')
+        DropPlayer(src, 'Could not identify your FiveM/Rockstar license.')
         return
     end
 
@@ -98,7 +98,7 @@ end)
 RegisterNetEvent('ph-core:auth:register', function(data)
     local src = source
     if PH.Players[src] then return end        -- deja autentificat in aceasta sesiune
-    if not PH.DB.ready then return authFail(src, 'Serverul se initializeaza.') end
+    if not PH.DB.ready then return authFail(src, 'The server is starting up.') end
 
     data = data or {}
     print(('^3[ph-core] register payload:^7 username=%q email=%q pass_len=%s'):format(
@@ -110,28 +110,28 @@ RegisterNetEvent('ph-core:auth:register', function(data)
     local okP, password = validatePassword(data.password)
 
     if not okU then
-        return authFail(src, 'Username invalid (3-24 caractere: litere, cifre, _).')
+        return authFail(src, 'Invalid username (3-24 characters: letters, digits, _).')
     end
     if not okE then
-        return authFail(src, 'Adresa de email invalida.')
+        return authFail(src, 'Invalid email address.')
     end
     if not okP then
-        return authFail(src, 'Parola invalida (minim ' .. Config.Password.minLength .. ' caractere).')
+        return authFail(src, 'Invalid password (minimum ' .. Config.Password.minLength .. ' characters).')
     end
 
     local license = getLicense(src)
     if not license then
-        return DropPlayer(src, 'Licenta invalida.')
+        return DropPlayer(src, 'Invalid license.')
     end
 
     if MySQL.scalar.await('SELECT id FROM users WHERE license = ?', { license }) then
-        return authFail(src, 'Exista deja un cont pe aceasta licenta. Foloseste autentificarea.')
+        return authFail(src, 'An account already exists on this license. Use the login instead.')
     end
     if MySQL.scalar.await('SELECT id FROM users WHERE username = ?', { username }) then
-        return authFail(src, 'Username-ul este deja folosit.')
+        return authFail(src, 'That username is already taken.')
     end
     if MySQL.scalar.await('SELECT id FROM users WHERE email = ?', { email }) then
-        return authFail(src, 'Exista deja un cont cu acest email.')
+        return authFail(src, 'An account with this email already exists.')
     end
 
     local id = MySQL.insert.await(
@@ -140,7 +140,7 @@ RegisterNetEvent('ph-core:auth:register', function(data)
     )
 
     if not id then
-        return authFail(src, 'Eroare la crearea contului. Incearca din nou.')
+        return authFail(src, 'Error creating the account. Try again.')
     end
 
     PH.Players[src] = { userId = id, username = username }
@@ -149,7 +149,7 @@ RegisterNetEvent('ph-core:auth:register', function(data)
 
     TriggerClientEvent('ph-core:auth:result', src, {
         ok = true, next = 'character_create', username = username,
-        message = 'Cont creat cu succes.',
+        message = 'Account created successfully.',
     })
 end)
 
@@ -159,20 +159,20 @@ end)
 RegisterNetEvent('ph-core:auth:login', function(data)
     local src = source
     if PH.Players[src] and PH.Players[src].character then return end
-    if not PH.DB.ready then return authFail(src, 'Serverul se initializeaza.') end
+    if not PH.DB.ready then return authFail(src, 'The server is starting up.') end
 
     data = data or {}
     local username = PH.Utils.Trim(tostring(data.username or ''))
     local password = tostring(data.password or '')
 
     if username == '' or password == '' then
-        return authFail(src, 'Completeaza toate campurile.')
+        return authFail(src, 'Fill in all fields.')
     end
 
     local user = MySQL.single.await('SELECT * FROM users WHERE username = ?', { username })
 
     if not user or not verifyPassword(password, user.password) then
-        return authFail(src, 'Username sau parola gresita.')
+        return authFail(src, 'Wrong username or password.')
     end
 
     MySQL.update.await('UPDATE users SET last_login = NOW() WHERE id = ?', { user.id })
@@ -184,12 +184,12 @@ RegisterNetEvent('ph-core:auth:login', function(data)
         -- cont fara personaj
         TriggerClientEvent('ph-core:auth:result', src, {
             ok = true, next = 'character_create', username = user.username,
-            message = 'Autentificat. Creeaza-ti personajul.',
+            message = 'Authenticated. Create your character.',
         })
     else
         TriggerClientEvent('ph-core:auth:result', src, {
             ok = true, next = 'spawn', username = user.username,
-            message = 'Bine ai revenit!',
+            message = 'Welcome back!',
         })
         PH.Character.Load(src, user)
     end
@@ -208,6 +208,6 @@ AddEventHandler('playerDropped', function()
     PH.Session.Unbind(src)
     PH.Players[src] = nil
     if player then
-        PH.Log(('Jucator deconectat [src %d] user %s'):format(src, player.userId or '?'))
+        PH.Log(('Player disconnected [src %d] user %s'):format(src, player.userId or '?'))
     end
 end)

@@ -69,7 +69,7 @@ RegisterNetEvent('ph_hud:paycheckDue', function()
     -- exports['ph-core']:AddMoney(src, 'bank', 500)
     -- exports['ph_chat']:send(src, { text = 'Ai primit salariul: $500', textColor = '#8ce07a' })
     if Config and Config.Debug then
-        print(('[ph_hud] paycheck due pentru src %s'):format(src))
+        print(('[ph_hud] paycheck due for src %s'):format(src))
     end
 end)
 

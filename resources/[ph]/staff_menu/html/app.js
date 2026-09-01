@@ -39,7 +39,7 @@ function buildMenu(d) {
 
     // grade select (developer)
     const gsel = $('dev-staff-grade');
-    gsel.innerHTML = '<option value="">— fara staff —</option>' +
+    gsel.innerHTML = '<option value="">— no staff —</option>' +
         Object.keys(STATE.grades).map((k) => `<option value="${k}">${esc(STATE.grades[k].label)}</option>`).join('');
 
     // tabs
@@ -85,7 +85,7 @@ function refreshActionState() {
 function updateTargetBar() {
     $('target-label').textContent = STATE.selected
         ? `${STATE.selected.name} (#${STATE.selected.id})`
-        : 'niciun jucator selectat';
+        : 'no player selected';
 }
 
 /* ------------------------------------------------ tabs */
@@ -124,7 +124,7 @@ function filterPlayers() {
           <div class="acts">
             <button class="mini go" data-sel="${p.id}">Select</button>
           </div>
-        </div>`).join('') || '<div class="card">Niciun jucator.</div>';
+        </div>`).join('') || '<div class="card">No players.</div>';
 
     $('players-list').querySelectorAll('[data-sel]').forEach((b) => {
         b.onclick = () => {
@@ -165,7 +165,7 @@ function wireTicketButtons(container) {
             const op = b.dataset.t, id = Number(b.dataset.id);
             if (op === 'reply') {
                 STATE.modalAction = { kind: 'ticketReply', id };
-                openModal('Raspuns tichet #' + id, { text: true });
+                openModal('Ticket reply #' + id, { text: true });
             } else {
                 post('ticket', { op, id });
             }
@@ -175,13 +175,13 @@ function wireTicketButtons(container) {
 
 function renderTickets(list) {
     const c = $('tickets-list');
-    c.innerHTML = (list && list.length) ? list.map((t) => ticketCard(t, false)).join('') : '<div class="card">Niciun tichet deschis.</div>';
+    c.innerHTML = (list && list.length) ? list.map((t) => ticketCard(t, false)).join('') : '<div class="card">No open tickets.</div>';
     wireTicketButtons(c);
 }
 
 function renderActive(list) {
     const c = $('active-list');
-    c.innerHTML = (list && list.length) ? list.map((t) => ticketCard(t, true)).join('') : '<div class="card">Niciun tichet activ.</div>';
+    c.innerHTML = (list && list.length) ? list.map((t) => ticketCard(t, true)).join('') : '<div class="card">No active tickets.</div>';
     wireTicketButtons(c);
 }
 
@@ -190,12 +190,12 @@ function renderDevInfo(info) {
     const up = info.uptime || 0;
     const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
     $('dev-info').innerHTML =
-        `Uptime: ${h}h ${m}m<br>Jucatori: ${info.players} / ${info.maxPlayers}<br>Resurse: ${info.resources}`;
+        `Uptime: ${h}h ${m}m<br>Players: ${info.players} / ${info.maxPlayers}<br>Resources: ${info.resources}`;
 }
 
 /* ------------------------------------------------ actions */
 function onAction(a) {
-    if (a.needsTarget && !STATE.selected) return toast('Selecteaza un jucator.');
+    if (a.needsTarget && !STATE.selected) return toast('Select a player.');
 
     const need = {};
     if (a.needsReason) need.reason = true;
@@ -313,7 +313,7 @@ window.addEventListener('message', (ev) => {
         hide();
     } else if (d.action === 'result') {
         const r = d.data || {};
-        toast(r.msg || (r.ok ? 'OK' : 'Eroare'));
+        toast(r.msg || (r.ok ? 'OK' : 'Error'));
         if (STATE.tab === 'players') post('players');
     } else if (d.action === 'toast') {
         toast(d.text || '');

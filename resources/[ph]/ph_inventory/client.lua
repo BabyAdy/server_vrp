@@ -403,7 +403,7 @@ CreateThread(function()
             end
             if near then
                 BeginTextCommandDisplayHelp('STRING')
-                AddTextComponentSubstringPlayerName('Apasa ~INPUT_CONTEXT~ pentru a ridica itemele')
+                AddTextComponentSubstringPlayerName('Press ~INPUT_CONTEXT~ to pick up the items')
                 EndTextCommandDisplayHelp(0, false, true, -1)
                 if IsControlJustReleased(0, 51) then
                     TriggerServerEvent('ph_inventory:sv:pickup', near)

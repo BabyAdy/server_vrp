@@ -38,11 +38,11 @@ Config.Noclip = {
     -- Noclip e strict pentru staff -> toate vitezele sunt disponibile mereu.
     -- `mps` = viteza in metri/secunda (deplasarea pe frame = mps * frametime)
     Speeds = {
-        { name = 'Slow',      label = 'Incet',            mps = 3.0   },
+        { name = 'Slow',      label = 'Slow',             mps = 3.0   },
         { name = 'Normal',    label = 'Normal',           mps = 9.0   },
-        { name = 'Fast',      label = 'Rapid',            mps = 20.0  },
-        { name = 'Very Fast', label = 'Foarte rapid',     mps = 45.0  },
-        { name = 'Sasuke',    label = 'MEGA ULTRA RAPID', mps = 140.0 },
+        { name = 'Fast',      label = 'Fast',             mps = 20.0  },
+        { name = 'Very Fast', label = 'Very Fast',        mps = 45.0  },
+        { name = 'Sasuke',    label = 'MEGA ULTRA FAST',  mps = 140.0 },
     },
 }
 

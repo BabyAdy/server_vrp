@@ -52,7 +52,7 @@ function PH.Character.Load(src, row)
 
     MySQL.update.await('UPDATE users SET last_login = NOW() WHERE id = ?', { row.id })
     PH.Session.Bind(src, row.id, (PH.GetLicense and PH.GetLicense(src)) or '', row.username)
-    PH.Log(('Personaj incarcat: %s (id %d) [src %d]'):format(row.username, row.id, src))
+    PH.Log(('Character loaded: %s (id %d) [src %d]'):format(row.username, row.id, src))
 
     TriggerClientEvent('ph-core:character:spawn', src, player.character)
 end
@@ -90,7 +90,7 @@ RegisterNetEvent('ph-core:character:create', function(data)
     local player = PH.Players[src]
 
     if not player then
-        return charFail(src, 'Nu esti autentificat.')
+        return charFail(src, 'You are not authenticated.')
     end
     if player.character then return end   -- are deja personaj incarcat
 
@@ -100,14 +100,14 @@ RegisterNetEvent('ph-core:character:create', function(data)
     local height = tonumber(data.height)
 
     if not okD then
-        return charFail(src, ('Data nasterii invalida sau varsta in afara intervalului %d-%d ani.')
+        return charFail(src, ('Invalid date of birth, or age outside the %d-%d range.')
             :format(Config.Character.minAge, Config.Character.maxAge))
     end
     if gender ~= 0 and gender ~= 1 then
-        return charFail(src, 'Gen invalid.')
+        return charFail(src, 'Invalid gender.')
     end
     if not height or height < Config.Character.minHeight or height > Config.Character.maxHeight then
-        return charFail(src, ('Inaltime invalida (%d-%d cm).')
+        return charFail(src, ('Invalid height (%d-%d cm).')
             :format(Config.Character.minHeight, Config.Character.maxHeight))
     end
 
@@ -119,11 +119,11 @@ RegisterNetEvent('ph-core:character:create', function(data)
 
     local row = MySQL.single.await('SELECT * FROM users WHERE id = ?', { player.userId })
     if not row then
-        return charFail(src, 'Eroare la salvarea personajului.')
+        return charFail(src, 'Error saving the character.')
     end
 
-    PH.Log(('Personaj creat: %s (id %d) [src %d]'):format(row.username, row.id, src))
-    TriggerClientEvent('ph-core:character:result', src, { ok = true, message = 'Personaj creat!' })
+    PH.Log(('Character created: %s (id %d) [src %d]'):format(row.username, row.id, src))
+    TriggerClientEvent('ph-core:character:result', src, { ok = true, message = 'Character created!' })
     PH.Character.Load(src, row)
 end)
 
@@ -135,7 +135,7 @@ RegisterNetEvent('ph-core:character:spawned', function()
     local player = PH.Players[src]
     if not player or not player.character then return end
 
-    PH.Log(('Jucator complet in joc [src %d] user %d'):format(src, player.character.id))
+    PH.Log(('Player fully in game [src %d] user %d'):format(src, player.character.id))
     -- hook pentru alte resurse (leveling, inventar, etc.)
     TriggerEvent('ph-core:playerLoaded', src, player.character)
 end)

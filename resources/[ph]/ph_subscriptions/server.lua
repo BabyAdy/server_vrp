@@ -39,11 +39,11 @@ CreateThread(function()
     while GetResourceState(PH) ~= 'started' do Wait(200) end
     local ok, err = pcall(function() MySQL.query.await(SCHEMA) end)
     if not ok then
-        print('^1[ph_subscriptions] eroare init DB:^7 ' .. tostring(err))
+        print('^1[ph_subscriptions] DB init error:^7 ' .. tostring(err))
         return
     end
     ready = true
-    print('^5[ph_subscriptions]^7 pregatit.')
+    print('^5[ph_subscriptions]^7 ready.')
 end)
 
 -- ----------------------------------------------------------
@@ -216,7 +216,7 @@ CreateThread(function()
                         TriggerEvent('ph_subscriptions:expired', uid, tier)
                         local s = srcOf(uid)
                         if s then
-                            notify(s, ('Abonamentul %s a expirat. Sloturile bonus au fost eliberate.')
+                            notify(s, ('Your %s subscription expired. Bonus slots have been released.')
                                 :format(cfg.label), '#e0c07a')
                         end
                     elseif activeNow and not rec.wasActive[tier] then
@@ -258,7 +258,7 @@ local function fmtRemaining(sec)
     local d = math.floor(sec / 86400); sec = sec % 86400
     local h = math.floor(sec / 3600);  sec = sec % 3600
     local m = math.floor(sec / 60);    sec = sec % 60
-    return ('%dz %dh %dm %ds'):format(d, h, m, sec)
+    return ('%dd %dh %dm %ds'):format(d, h, m, sec)
 end
 
 local function durFromArgs(a, i)
@@ -275,61 +275,64 @@ local function announceTo(userId, text, color)
 end
 
 RegisterCommand('subadd', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
     local uid  = tonumber(args[1])
     local tier = (args[2] or ''):lower()
     if not uid or not Config.Tiers[tier] then
-        print('uz: subadd <sqlId> <gold|platinum> <zile> [ore] [minute] [secunde]')
+        exports['ph-core']:CmdSyntax(src, '/subadd [sqlId] [gold/platinum] [days] [hours] [minutes] [seconds]')
         return
     end
     local secs = durFromArgs(args, 3)
     local exp = addTime(uid, tier, secs)
-    if not exp then print('subadd: user inexistent.') return end
+    if not exp then exports['ph-core']:CmdSyntax(src, '/subadd [sqlId] [gold/platinum] [days] [hours] [minutes] [seconds]  (no such user)') return end
     print(('subadd: user %d %s -> %s (%s)'):format(
-        uid, tier, exp > 0 and os.date('%d.%m.%Y %H:%M', exp) or 'inactiv', fmtRemaining(exp - now())))
-    announceTo(uid, ('Ai primit %s de abonament %s.'):format(fmtRemaining(secs), Config.Tiers[tier].label), '#8ce07a')
+        uid, tier, exp > 0 and os.date('%d.%m.%Y %H:%M', exp) or 'inactive', fmtRemaining(exp - now())))
+    announceTo(uid, ('You received %s of %s subscription.'):format(fmtRemaining(secs), Config.Tiers[tier].label), '#8ce07a')
+    exports['ph-core']:StaffMsg('subscription', ('%s granted user %d %s of %s subscription.'):format(GetPlayerName(src) or ('src ' .. src), uid, fmtRemaining(secs), Config.Tiers[tier].label))
 end, false)
 
 RegisterCommand('subset', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
     local uid  = tonumber(args[1])
     local tier = (args[2] or ''):lower()
     if not uid or not Config.Tiers[tier] then
-        print('uz: subset <sqlId> <gold|platinum> <zile> [ore] [minute] [secunde]')
+        exports['ph-core']:CmdSyntax(src, '/subset [sqlId] [gold/platinum] [days] [hours] [minutes] [seconds]')
         return
     end
     local secs = durFromArgs(args, 3)
     local exp = setTime(uid, tier, secs)
-    if not exp then print('subset: user inexistent.') return end
+    if not exp then exports['ph-core']:CmdSyntax(src, '/subset [sqlId] [gold/platinum] [days] [hours] [minutes] [seconds]  (no such user)') return end
     print(('subset: user %d %s -> %s'):format(uid, tier, fmtRemaining(exp - now())))
+    exports['ph-core']:StaffMsg('subscription', ('%s set user %d %s subscription to %s.'):format(GetPlayerName(src) or ('src ' .. src), uid, Config.Tiers[tier].label, fmtRemaining(exp - now())))
 end, false)
 
 RegisterCommand('subclear', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
     local uid  = tonumber(args[1])
     local tier = (args[2] or 'all'):lower()
-    if not uid then print('uz: subclear <sqlId> [gold|platinum|all]') return end
-    if tier ~= 'all' and not Config.Tiers[tier] then print('tier invalid') return end
+    if not uid then exports['ph-core']:CmdSyntax(src, '/subclear [sqlId] [gold/platinum/all]') return end
+    if tier ~= 'all' and not Config.Tiers[tier] then exports['ph-core']:CmdSyntax(src, '/subclear [sqlId] [gold/platinum/all]') return end
     if tier == 'all' then
         for t in pairs(Config.Tiers) do setTime(uid, t, 0) end
     else
         setTime(uid, tier, 0)
     end
     print(('subclear: user %d -> %s'):format(uid, tier))
+    exports['ph-core']:StaffMsg('subscription', ('%s cleared user %d subscription (%s).'):format(GetPlayerName(src) or ('src ' .. src), uid, tier))
 end, false)
 
 RegisterCommand('subcheck', function(src, args)
-    if src ~= 0 and not IsPlayerAceAllowed(src, 'ph.admin') then return end
+    if not exports['ph-core']:RequireAce(src, 'ph.admin', 'admin') then return end
     local uid = tonumber(args[1])
-    if not uid then print('uz: subcheck <sqlId>') return end
+    if not uid then exports['ph-core']:CmdSyntax(src, '/subcheck [sqlId]') return end
     local rec = getRec(uid)
-    if not rec then print('user inexistent.') return end
+    if not rec then exports['ph-core']:CmdSyntax(src, '/subcheck [sqlId]  (no such user)') return end
     for tier, cfg in pairs(Config.Tiers) do
         local exp = rec[tier] or 0
         print(('  %s: %s'):format(cfg.label,
-            tierActive(exp) and ('activ, mai are ' .. fmtRemaining(exp - now())) or 'inactiv'))
+            tierActive(exp) and ('active, ' .. fmtRemaining(exp - now()) .. ' left') or 'inactive'))
     end
-    print(('  bonus sloturi: +%d'):format(rec.bonus or 0))
+    print(('  bonus slots: +%d'):format(rec.bonus or 0))
 end, false)
 
 -- ----------------------------------------------------------
@@ -346,7 +349,7 @@ end
 
 RegisterCommand('debugsubs', function(src, args)
     if not canDebug(src) then
-        if src ~= 0 then notify(src, 'Nu ai acces la /debugsubs (necesita grad >= Manager).', '#e07a7a') end
+        exports['ph-core']:CmdPermError(src, 'manager')
         return
     end
 
@@ -357,13 +360,13 @@ RegisterCommand('debugsubs', function(src, args)
     local uid  = tonumber(args[1])
     local tier = (args[2] or ''):lower()
     if not uid or not Config.Tiers[tier] then
-        out('uz: /debugsubs <sqlId> <gold|platinum> <zile> [ore] [minute] [secunde]', '#e0c07a')
+        exports['ph-core']:CmdSyntax(src, '/debugsubs [sqlId] [gold/platinum] [days] [hours] [minutes] [seconds]')
         return
     end
 
     local rec = getRec(uid)
     if not rec then
-        out(('Nu exista niciun user cu id %s.'):format(uid), '#e07a7a')
+        out(('No user with id %s.'):format(uid), '#ff4d4d')
         return
     end
 
@@ -373,31 +376,32 @@ RegisterCommand('debugsubs', function(src, args)
     local cfg    = Config.Tiers[tier]
 
     out(('debugsubs: user %s / %s'):format(uid, cfg.label), '#b98cff')
-    out(('  inainte: %s'):format(
-        tierActive(before) and ('activ, ' .. fmtRemaining(before - now())) or 'inactiv'), '#cfc9e6')
-    out(('  setat:   %s  (%ds)'):format(fmtRemaining(secs), secs), '#cfc9e6')
-    out(('  acum:    %s%s'):format(
-        tierActive(after) and ('activ, ' .. fmtRemaining(after - now())) or 'inactiv',
+    out(('  before: %s'):format(
+        tierActive(before) and ('active, ' .. fmtRemaining(before - now())) or 'inactive'), '#cfc9e6')
+    out(('  set:     %s  (%ds)'):format(fmtRemaining(secs), secs), '#cfc9e6')
+    out(('  now:     %s%s'):format(
+        tierActive(after) and ('active, ' .. fmtRemaining(after - now())) or 'inactive',
         after > 0 and (' -> ' .. os.date('%d.%m.%Y %H:%M', after)) or ''), '#8ce07a')
-    out(('  bonus sloturi user: +%d'):format((SUBS[uid] and SUBS[uid].bonus) or 0), '#8ce07a')
+    out(('  user bonus slots: +%d'):format((SUBS[uid] and SUBS[uid].bonus) or 0), '#8ce07a')
 
-    announceTo(uid, ('Abonamentul %s a fost setat la %s de un membru al staff-ului.')
+    announceTo(uid, ('Your %s subscription was set to %s by a staff member.')
         :format(cfg.label, fmtRemaining(secs)), '#e0c07a')
+    exports['ph-core']:StaffMsg('subscription', ('%s set user %d %s subscription to %s (debugsubs).'):format(GetPlayerName(src) or ('src ' .. src), uid, cfg.label, fmtRemaining(secs)))
 end, false)
 
 AddEventHandler('onResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     if GetResourceState('ph_chat') == 'started' then
         TriggerClientEvent('chat:addSuggestion', -1, '/debugsubs',
-            'Seteaza durata unui abonament (staff >= Manager)',
-            { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'zile' },
-              { name = 'ore' }, { name = 'minute' }, { name = 'secunde' } })
+            'Set a subscription duration',
+            { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'days' },
+              { name = 'hours' }, { name = 'minutes' }, { name = 'seconds' } })
     end
 end)
 
 AddEventHandler('ph-core:playerLoaded', function(src)
     TriggerClientEvent('chat:addSuggestion', src, '/debugsubs',
-        'Seteaza durata unui abonament (staff >= Manager)',
-        { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'zile' },
-          { name = 'ore' }, { name = 'minute' }, { name = 'secunde' } })
+        'Set a subscription duration',
+        { { name = 'sqlId' }, { name = 'gold|platinum' }, { name = 'days' },
+          { name = 'hours' }, { name = 'minutes' }, { name = 'seconds' } })
 end)

@@ -66,7 +66,7 @@ document.getElementById('form-login').addEventListener('submit', (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     setFormEnabled('form-login', false);
-    setMsg('msg-login', 'Se verifica...', true);
+    setMsg('msg-login', 'Checking...', true);
     post('login', {
         username: (fd.get('username') || '').trim(),
         password: fd.get('password') || '',
@@ -82,11 +82,11 @@ document.getElementById('form-register').addEventListener('submit', (e) => {
     const pw2 = fd.get('password2') || '';
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-        setMsg('msg-register', 'Adresa de email invalida.', false);
+        setMsg('msg-register', 'Invalid email address.', false);
         return;
     }
     if (pw !== pw2) {
-        setMsg('msg-register', 'Parolele nu coincid.', false);
+        setMsg('msg-register', 'Passwords do not match.', false);
         return;
     }
 
@@ -98,7 +98,7 @@ document.getElementById('form-register').addEventListener('submit', (e) => {
     console.log('[ph-core] sending register:', JSON.stringify({ ...payload, password: '***' }));
 
     setFormEnabled('form-register', false);
-    setMsg('msg-register', 'Se creeaza contul...', true);
+    setMsg('msg-register', 'Creating account...', true);
     post('register', payload);
 });
 
@@ -121,12 +121,12 @@ document.getElementById('form-char').addEventListener('submit', (e) => {
     const fd = new FormData(e.target);
 
     if (!fd.get('dob')) {
-        setMsg('msg-char', 'Alege data nasterii.', false);
+        setMsg('msg-char', 'Choose your date of birth.', false);
         return;
     }
 
     setFormEnabled('form-char', false);
-    setMsg('msg-char', 'Se creeaza personajul...', true);
+    setMsg('msg-char', 'Creating character...', true);
     post('createCharacter', {
         dob: fd.get('dob'),
         gender: fd.get('gender'),
