@@ -16,7 +16,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[c]);
 
-const S = { data: null, mtab: 'members', memSearch: '', dev: null, dtab: 'create', efcat: 'car' };
+const S = { data: null, mtab: 'members', dev: null, dtab: 'create', efcat: 'car' };
 
 const mop = (payload) => post('menu', payload);
 const dop = (payload) => post('devMenu', Object.assign({ factionId: efFactionId() }, payload));
@@ -30,60 +30,89 @@ function monogram(name) {
     const hue = Math.abs(h) % 360;
     return `<span class="mono" style="background:hsl(${hue}deg 52% 42%)">${esc(ch)}</span>`;
 }
-function badgeHtml(key) {
-    if (!key) return '';
-    const b = (S.data && S.data.badges && S.data.badges[key]) || null;
-    if (!b) return `<span class="bdg">${esc(key)}</span>`;
-    return `<span class="bdg" style="color:${esc(b.color)}">${esc(b.icon || '')} ${esc(b.label)}</span>`;
-}
 const prettyAction = (a) => String(a || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 /* ============================================================ FACTION MENU */
+const BADGE_CLASS = {
+    leader: 'leader-badge', coleader: 'co-leader-badge',
+    supervisor: 'supervisor-badge', tester: 'tester-badge',
+};
+
+/* one <span class="badge"> for a Config.Badges key */
+function badgeChip(key) {
+    const b = (S.data && S.data.badges && S.data.badges[key]) || { label: key, color: '#b98cff', icon: '' };
+    const cls = BADGE_CLASS[key] || '';
+    return `<span class="badge ${cls}" style="color:${esc(b.color)}">${esc(b.icon || '')} ${esc(b.label)}</span>`;
+}
+
+/* full badge set for a member (rank badge + supervisor + tester, like the template) */
+function memberBadges(m) {
+    const rl = S.data.rankLeader || 7;
+    const rc = S.data.rankCoLeader || 6;
+    const out = [];
+    if (m.rank >= rl) out.push(badgeChip('leader'));
+    else if (m.rank >= rc) out.push(badgeChip('coleader'));
+    if (m.supervisor) out.push(badgeChip('supervisor'));
+    if (m.tester) out.push(badgeChip('tester'));
+    return out.length ? `<div class="badges-wrapper">${out.join('')}</div>` : '<span class="none-badge">-</span>';
+}
+
+/* buttons for the "Manage" column, gated the same way the server gates the op */
 function memberActions(m) {
     const role = S.data.role || {};
-    const rc = S.data.rankCoLeader || 6;
     const rl = S.data.rankLeader || 7;
+    const isSelf = m.id === role.me;
+    const myRank = role.rank || 0;
     const out = [];
-    // rank up / rank down: Leader only (faction_rank == 7), not on self
-    if (role.isLeader && m.id !== undefined) {
-        if (m.rank >= 1 && m.rank < rl - 1) out.push(`<button class="btn mini" data-a="promote" data-u="${m.id}">Rank +</button>`);
-        if (m.rank > 1) out.push(`<button class="btn mini" data-a="demote" data-u="${m.id}">Rank -</button>`);
+
+    const d = `data-u="${m.id}" data-n="${esc(m.name)}"`;
+    if (role.isLeader && !isSelf && m.rank < rl) {
+        out.push(`<button class="btn btn-rank" data-a="setRank" ${d} title="Change Rank"><i class="fa-solid fa-angles-up"></i> Rank</button>`);
     }
-    // tester / supervisor / warn: faction_rank >= 6
-    if (role.canManage) {
-        out.push(`<button class="btn mini" data-a="toggleTester" data-u="${m.id}">${m.tester ? 'Remove' : 'Promote'} Tester</button>`);
-        out.push(`<button class="btn mini" data-a="toggleSupervisor" data-u="${m.id}">${m.supervisor ? 'Remove' : 'Promote'} Supervisor</button>`);
-        out.push(`<button class="btn mini" data-a="warn" data-u="${m.id}">Give Warn</button>`);
-        if (m.warns > 0) out.push(`<button class="btn mini" data-a="unwarn" data-u="${m.id}">Remove Warn</button>`);
+    if (role.canManage && !isSelf && m.rank < myRank) {
+        out.push(`<button class="btn btn-warn" data-a="warn" ${d} title="Give Faction Warn"><i class="fa-solid fa-triangle-exclamation"></i> FW</button>`);
     }
-    return out.join('');
+    if (role.canManage && m.warns > 0) {
+        out.push(`<button class="btn btn-unwarn" data-a="unwarn" ${d} title="Remove Warn"><i class="fa-solid fa-shield-halved"></i> Unwarn</button>`);
+    }
+    if (role.canManage && !isSelf && m.rank < myRank) {
+        out.push(`<button class="btn btn-uninvite" data-a="uninvite" ${d} title="Uninvite"><i class="fa-solid fa-user-xmark"></i> Uninvite</button>`);
+        out.push(`<button class="btn btn-supervisor" data-a="toggleSupervisor" ${d} title="Toggle Supervisor"><i class="fa-solid fa-user-shield"></i> ${m.supervisor ? 'Remove Sup' : 'Supervisor'}</button>`);
+        out.push(`<button class="btn btn-tester" data-a="toggleTester" ${d} title="Toggle Tester"><i class="fa-solid fa-vial"></i> ${m.tester ? 'Remove Tester' : 'Tester'}</button>`);
+    }
+    return out.length ? `<div class="action-buttons">${out.join('')}</div>` : '<span class="no-action">No action available</span>';
 }
 
 function renderMembers() {
-    const fac = S.data.faction || {};
-    const ranks = fac.ranks || [];
-    const q = S.memSearch.toLowerCase();
-    const list = (S.data.members || []).filter((m) => !q || String(m.name).toLowerCase().includes(q));
+    const ranks = (S.data.faction || {}).ranks || [];
+    const list = S.data.members || [];
     $('#members').innerHTML = list.map((m) => {
         const rkName = ranks[m.rank - 1] || ('Rank ' + m.rank);
-        const warnTag = m.warns > 0 ? ` <span class="wtag">${m.warns}/${S.data.maxWarns}</span>` : '';
-        const offTag = m.online ? '' : ' <span class="wtag off">offline</span>';
-        return `<div class="mrow">
-            <span class="c-av">${monogram(m.name)}</span>
-            <span class="c-nm">${esc(m.name)}${offTag}</span>
-            <span class="c-dy">${Number(m.days || 0).toFixed(2)}</span>
-            <span class="c-rk">${esc(rkName)} <span class="rn">(${m.rank})</span></span>
-            <span class="c-bd">${badgeHtml(m.badge)}${warnTag}</span>
-            <span class="grow"></span>
-            <span class="c-ac">${memberActions(m)}</span>
-        </div>`;
-    }).join('') || '<div class="muted">No members.</div>';
+        const wcls = m.warns > 0 ? 'warns-count has-warns' : 'warns-count';
+        const off = m.online ? '' : ' <span class="wtag off">offline</span>';
+        return `<tr>
+            <td><span class="table-avatar">${monogram(m.name)}</span></td>
+            <td class="username">${esc(m.name)}${off}</td>
+            <td>${Number(m.days || 0).toFixed(2)}</td>
+            <td><span class="rank-badge rank-${m.rank}">${esc(rkName)} <span class="rn">(${m.rank})</span></span></td>
+            <td><span class="${wcls}">${m.warns}/${S.data.maxWarns}</span></td>
+            <td>${memberBadges(m)}</td>
+            <td>${memberActions(m)}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" class="no-action">No members.</td></tr>';
 
     $$('#members [data-a]').forEach((b) => b.onclick = () => {
         const a = b.dataset.a, u = Number(b.dataset.u);
-        if (a === 'warn') {
-            const reason = prompt('Warn reason:') || '';
+        const name = b.dataset.n || ('#' + u);
+        if (a === 'setRank') {
+            const max = (S.data.rankLeader || 7) - 1;
+            const v = parseInt(prompt(`New rank for ${name} (1-${max}):`, ''), 10);
+            if (v >= 1 && v <= max) mop({ op: 'setRank', userId: u, rank: v });
+        } else if (a === 'warn') {
+            const reason = prompt(`Warn reason for ${name}:`) || '';
             mop({ op: 'warn', userId: u, reason });
+        } else if (a === 'uninvite') {
+            if (confirm(`Uninvite ${name} from the faction?`)) mop({ op: 'uninvite', userId: u });
         } else {
             mop({ op: a, userId: u });
         }
@@ -92,29 +121,39 @@ function renderMembers() {
 
 function renderLogs() {
     const rows = S.data.logs || [];
-    $('#logs').innerHTML = rows.map((r) => `
-        <div class="lrow">
-            <span class="l-tm">${esc(r.created_at || '')}</span>
-            <span class="l-ac">${esc(r.actor_name || '—')}</span>
-            <span class="l-at">${esc(prettyAction(r.action))}</span>
-            <span class="l-tg">${esc(r.target_name || '—')}</span>
-            <span class="l-dt">${esc(r.detail || '')}</span>
-        </div>`).join('') || '<div class="muted">No logs.</div>';
+    const empty = $('#logs-empty');
+    if (!rows.length) {
+        $('#logs').innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+    $('#logs').innerHTML = rows.map((r) => `<tr>
+        <td>${esc(r.created_at || '')}</td>
+        <td>${esc(r.actor_name || '—')}</td>
+        <td>${esc(prettyAction(r.action))}</td>
+        <td>${esc(r.target_name || '—')}</td>
+        <td>${esc(r.detail || '')}</td>
+    </tr>`).join('');
 }
 
 function renderMenu() {
     if (!S.data) return;
     const fac = S.data.faction || {};
     const role = S.data.role || {};
-    $('#f-name').textContent = fac.name || 'Faction Menu';
-    $('#f-role').textContent = role.isLeader ? 'Leader'
-        : role.rank === (S.data.rankCoLeader || 6) ? 'Co-Leader'
-        : (role.rankName || ('Rank ' + role.rank));
 
-    $$('#menu .tabs button').forEach((b) => b.classList.toggle('active', b.dataset.mtab === S.mtab));
-    $$('#menu .tab').forEach((s) => s.classList.toggle('active', s.dataset.mtab === S.mtab));
-    if (S.mtab === 'members') renderMembers();
-    else renderLogs();
+    const logo = $('#fm-logo');
+    if (S.data.logo) { logo.src = S.data.logo; } else { logo.removeAttribute('src'); }
+    $('#fm-server').textContent = S.data.serverName || 'Purple Havoc';
+    $('#fm-fid').textContent = '[' + (fac.id != null ? fac.id : '–') + ']';
+    $('#fm-fname').textContent = fac.name || '–';
+    $('#fm-uname').textContent = role.myName || '–';
+    $('#fm-avatar').innerHTML = monogram(role.myName || '?');
+
+    $$('#menu .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.mtab === S.mtab));
+    $$('#menu .tab-content').forEach((s) => s.classList.toggle('active', s.id === S.mtab + '-tab'));
+    if (S.mtab === 'logs') renderLogs();
+    else renderMembers();
 }
 
 /* ============================================================ DEV MENU */
@@ -189,8 +228,7 @@ function renderDev() {
 
 /* ============================================================ static wiring: faction menu */
 $('#close').onclick = () => post('close').then(hideAll);
-$('#mem-search').addEventListener('input', (e) => { S.memSearch = e.target.value; renderMembers(); });
-$$('#menu .tabs button').forEach((b) => b.onclick = () => { S.mtab = b.dataset.mtab; renderMenu(); });
+$$('#menu .nav-btn').forEach((b) => b.onclick = () => { S.mtab = b.dataset.mtab; renderMenu(); });
 
 /* ============================================================ static wiring: dev menu */
 $('#dev-close').onclick = () => post('close').then(hideAll);

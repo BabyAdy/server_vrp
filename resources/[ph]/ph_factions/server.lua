@@ -423,7 +423,7 @@ function adminSetMembership(userId, fid, rank, fresh)
     return true
 end
 
-function kickMember(userId, reason)
+function kickMember(userId, reason, actorUid)
     local m = MEMBER[userId]
     if not m or m.faction == 0 then return end
     local fid = m.faction
@@ -442,7 +442,7 @@ function kickMember(userId, reason)
     if s then
         notify(s, ('You were removed from the faction%s.'):format(reason and (' (' .. reason .. ')') or ''), '#e07a7a')
     end
-    flog(fid, nil, 'kick', userId, nameOfUser(userId), reason)
+    flog(fid, actorUid, 'kick', userId, nameOfUser(userId), reason)
 end
 
 local function addWarn(fid, actorUid, targetUid, delta, reason)
@@ -634,6 +634,8 @@ local function memberMenuPayload(uid, m)
     if not f then return nil end
     return {
         role = {
+            me        = uid,
+            myName    = nameOfUser(uid),
             rank      = m.rank,
             rankName  = f.ranks[m.rank] or ('Rank ' .. m.rank),
             isLeader  = m.rank >= Config.RankLeader,
@@ -643,6 +645,8 @@ local function memberMenuPayload(uid, m)
             id = f.id, name = f.name, short = f.short, ranks = f.ranks,
             leaderName = f.leaderName, managerName = f.managerName,
         },
+        serverName  = Config.ServerName,
+        logo        = Config.MenuLogo,
         members     = buildMembers(f.id),
         logs        = buildLogs(f.id),
         badges      = Config.Badges,
@@ -707,6 +711,32 @@ RegisterNetEvent('ph_factions:sv:menu', function(p)
         local ts = srcOf(target)
         if ts then notify(ts, ('New rank: %s.'):format(f.ranks[nr]), '#8ce07a'); pushSelf(ts) end
         return done('Rank updated.', 'success')
+
+    elseif op == 'setRank' then
+        -- set arbitrary rank 1..(RankLeader-1): doar Leaderul (faction_rank == 7)
+        if m.rank < Config.RankLeader then return done('Leader only.', 'error') end
+        if target == uid then return done('Not on yourself.', 'warning') end
+        if tm.rank >= Config.RankLeader then return done('Cannot change the Leader here (use /setleader).', 'warning') end
+        local nr = math.floor(tonumber(p.rank) or 0)
+        if nr < 1 or nr >= Config.RankLeader then
+            return done(('Rank must be 1-%d.'):format(Config.RankLeader - 1), 'error')
+        end
+        if nr == tm.rank then return refreshMember(src, uid) end
+        tm.rank = nr
+        saveMember(target)
+        flog(f.id, uid, 'setrank', target, nameOfUser(target), 'rank ' .. nr)
+        local ts = srcOf(target)
+        if ts then notify(ts, ('New rank: %s.'):format(f.ranks[nr]), '#8ce07a'); pushSelf(ts) end
+        return done('Rank updated.', 'success')
+
+    elseif op == 'uninvite' then
+        -- Uninvite: faction_rank >= 6, tinta strict sub rangul actorului
+        if m.rank < Config.RankCoLeader then return done('Leader / Co-Leader only.', 'error') end
+        if target == uid then return done('Not on yourself.', 'warning') end
+        if tm.rank >= m.rank then return done('Cannot uninvite an equal or higher rank.', 'error') end
+        flog(f.id, uid, 'uninvite', target, nameOfUser(target), p.reason)
+        kickMember(target, p.reason and ('uninvited: ' .. tostring(p.reason):sub(1, 120)) or 'uninvited', uid)
+        return done('Member removed from the faction.', 'success')
 
     elseif op == 'toggleTester' or op == 'toggleSupervisor' then
         -- Promote / Remove Tester|Supervisor: faction_rank >= 6

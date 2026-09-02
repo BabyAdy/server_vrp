@@ -65,12 +65,43 @@ local function applyAppearance(ap)
 end
 exports('Apply', function(ap) return applyAppearance(ap) end)
 
+--- ascunde / reafiseaza regiuni de corp (Config.BodyHide) pe componentele GTA.
+--- `body` = { <regiune> = true/false }.  "ascuns" bate "vizibil" pe o componenta
+--- partajata; "vizibil" revine la Config.NakedOutfit[gender].components[comp]
+--- (fallback 0/0).  NU atinge parul (comp 2).
+local function applyBody(p, gender, body)
+    p = p or PlayerPedId()
+    local cfg = Config.BodyHide and Config.BodyHide[gender]
+    if not cfg then return end
+    body = type(body) == 'table' and body or {}
+    local naked = Config.NakedOutfit and Config.NakedOutfit[gender]
+    local desired = {}   -- [comp] = { drawable, texture }
+    for region, specs in pairs(cfg) do
+        local hidden = body[region] == true
+        for _, ov in ipairs(specs) do
+            local comp = tonumber(ov.comp)
+            if comp and comp ~= 2 then
+                if hidden then
+                    desired[comp] = { ov.drawable or 0, ov.texture or 0 }
+                elseif desired[comp] == nil then
+                    local nb = naked and naked.components and naked.components[comp]
+                    desired[comp] = { nb and nb[1] or 0, nb and nb[2] or 0 }
+                end
+            end
+        end
+    end
+    for comp, dt in pairs(desired) do
+        SetPedComponentVariation(p, comp, dt[1], dt[2], 0)
+    end
+end
+exports('ApplyBody', function(gender, body) applyBody(PlayerPedId(), tonumber(gender) or 0, body) end)
+
 --- aspectul "dezbracat" (Config.NakedOutfit) - reperul fara haine de inventar.
---- NU atinge parul (comp 2).
-local function applyNakedBase(p, gender)
+--- NU atinge parul (comp 2).  `body` (optional) = regiuni ascunse, aplicate peste baza.
+local function applyNakedBase(p, gender, body)
     p = p or PlayerPedId()
     local o = Config.NakedOutfit and Config.NakedOutfit[gender]
-    if not o then SetPedDefaultComponentVariation(p); return end
+    if not o then SetPedDefaultComponentVariation(p); applyBody(p, gender, body); return end
     for comp, dt in pairs(o.components or {}) do
         comp = tonumber(comp)
         if comp and comp ~= 2 then SetPedComponentVariation(p, comp, dt[1] or 0, dt[2] or 0, 0) end
@@ -82,8 +113,9 @@ local function applyNakedBase(p, gender)
             else SetPedPropIndex(p, prop, dt[1], dt[2] or 0, true) end
         end
     end
+    applyBody(p, gender, body)
 end
-exports('ApplyNakedBase', function(gender) applyNakedBase(PlayerPedId(), tonumber(gender) or 0) end)
+exports('ApplyNakedBase', function(gender, body) applyNakedBase(PlayerPedId(), tonumber(gender) or 0, body) end)
 
 --- cere lui ph_inventory sa re-capteze baza (acum "dezbracat") si sa re-echipeze
 local function reapplyInventoryClothes()
@@ -101,12 +133,12 @@ AddEventHandler('ph-core:client:playerLoaded', function(char)
         Wait(50)
         if ap then applyAppearance(ap) else ensureModel(gender) end
         Wait(60)
-        applyNakedBase(PlayerPedId(), ap and ap.gender or gender)
+        applyNakedBase(PlayerPedId(), ap and ap.gender or gender, ap and ap.body)
         -- re-aplica o data dupa ce totul e stabil (unele slot-uri se pot reseta la spawn)
         Wait(400)
         if not mode then
             if ap then applyAppearance(ap) end
-            applyNakedBase(PlayerPedId(), ap and ap.gender or gender)
+            applyNakedBase(PlayerPedId(), ap and ap.gender or gender, ap and ap.body)
         end
         -- ph_inventory (hook-ul lui de playerLoaded) capteaza baza si echipeaza hainele
     end)
@@ -118,7 +150,7 @@ RegisterNetEvent('ph_appearance:cl:applyLive', function(ap)
     CreateThread(function()
         applyAppearance(ap)
         Wait(50)
-        applyNakedBase(PlayerPedId(), (ap and ap.gender) or 0)
+        applyNakedBase(PlayerPedId(), (ap and ap.gender) or 0, ap and ap.body)
         Wait(30)
         reapplyInventoryClothes()   -- ph_inventory re-echipeaza hainele purtate
     end)
@@ -235,7 +267,7 @@ local function leaveScene()
         local myAp = Appearance.Decode(me and me.appearance)
         if myAp then applyAppearance(myAp) else ensureModel(tonumber(me and me.gender) or 0) end
         Wait(30)
-        applyNakedBase(PlayerPedId(), myAp and myAp.gender or (tonumber(me and me.gender) or 0))
+        applyNakedBase(PlayerPedId(), myAp and myAp.gender or (tonumber(me and me.gender) or 0), myAp and myAp.body)
         reapplyInventoryClothes()   -- re-echipeaza hainele proprii ale managerului
         p = PlayerPedId()
         if ownBackup.coords then
@@ -264,6 +296,7 @@ RegisterNetEvent('ph_appearance:cl:startCreator', function(data)
 
     enterScene()
     local p = applyAppearance(cur)
+    applyBody(p, cur.gender, cur.body)
     SendNUIMessage({
         action = 'open',
         data = {
@@ -271,6 +304,7 @@ RegisterNetEvent('ph_appearance:cl:startCreator', function(data)
             appearance = cur,
             maxes = computeMaxes(p),
             overlayOrder = Appearance.OVERLAY_ORDER,
+            bodyParts = Appearance.BODY_PARTS,
         },
     })
 end)
@@ -288,6 +322,7 @@ RegisterNetEvent('ph_appearance:cl:startEditor', function(data)
 
     enterScene()
     local p = applyAppearance(cur)
+    applyBody(p, cur.gender, cur.body)
     SendNUIMessage({
         action = 'open',
         data = {
@@ -298,6 +333,7 @@ RegisterNetEvent('ph_appearance:cl:startEditor', function(data)
             template = data.template or nil,
             maxes = computeMaxes(p),
             overlayOrder = Appearance.OVERLAY_ORDER,
+            bodyParts = Appearance.BODY_PARTS,
         },
     })
 end)
@@ -314,6 +350,7 @@ RegisterNetEvent('ph_appearance:cl:editorTemplate', function(payload)
     end
     cur.gender = gender
     local p = applyAppearance(cur)
+    applyBody(p, cur.gender, cur.body)
     SendNUIMessage({
         action = 'genderSwitched',
         data = {
@@ -321,6 +358,7 @@ RegisterNetEvent('ph_appearance:cl:editorTemplate', function(payload)
             appearance = cur,
             template = payload.template or nil,
             maxes = computeMaxes(p),
+            bodyParts = Appearance.BODY_PARTS,
         },
     })
 end)
@@ -341,8 +379,15 @@ RegisterNUICallback('paUpdate', function(d, cb)
         else
             cur.gender = g
             local p = applyAppearance(cur)
-            SendNUIMessage({ action = 'genderSwitched', data = { gender = g, appearance = cur, maxes = computeMaxes(p) } })
+            applyBody(p, cur.gender, cur.body)
+            SendNUIMessage({ action = 'genderSwitched', data = {
+                gender = g, appearance = cur, maxes = computeMaxes(p), bodyParts = Appearance.BODY_PARTS } })
         end
+        return
+    elseif s == 'body' then
+        cur.body = type(cur.body) == 'table' and cur.body or {}
+        cur.body[d.key] = d.value == true
+        applyBody(PlayerPedId(), cur.gender, cur.body)
         return
     elseif s == 'heritage' then
         cur.heritage[d.key] = tonumber(d.value) or cur.heritage[d.key]
@@ -392,7 +437,9 @@ RegisterNUICallback('paLoadTemplate', function(d, cb)
     if not cur or type(d) ~= 'table' or type(d.appearance) ~= 'table' then return end
     cur = Appearance.Clamp(d.appearance)
     local p = applyAppearance(cur)
-    SendNUIMessage({ action = 'setAll', data = { appearance = cur, maxes = computeMaxes(p) } })
+    applyBody(p, cur.gender, cur.body)
+    SendNUIMessage({ action = 'setAll', data = {
+        appearance = cur, maxes = computeMaxes(p), bodyParts = Appearance.BODY_PARTS } })
 end)
 
 --- CREATE: gata -> trimite la server, care scrie DB si anunta ph-core

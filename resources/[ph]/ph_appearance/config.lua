@@ -58,6 +58,38 @@ Config.NakedOutfit = {
     },
 }
 
+-- ----------------------------------------------------------
+--  ASCUNDERE REGIUNI DE CORP  (creator + /editcharacter -> tab "Body")
+--
+--  Fiecare regiune (cheile din Appearance.BODY_PARTS) = lista de componente GTA
+--  care se seteaza pe un drawable "invizibil" cand jucatorul o ascunde.
+--    { comp = <id GTA>, drawable = <index>, texture = <index> }
+--
+--  IMPORTANT: pe base game "invizibil" pentru brate/picioare inseamna de fapt
+--  "piele goala" (drawable 15 pe comp 3/4).  Daca stream-uiesti un pack de
+--  "invisible clothing", pune AICI drawable-urile lui ca sa dispara complet.
+--  La "vizibil" regiunea revine la Config.NakedOutfit[gender].components[comp].
+--  Ascunderea se vede DOAR cat timp slotul respectiv nu are haina echipata din
+--  inventar (hainele au prioritate).
+--
+--  comp:  3 = brate/maini (uppr)   4 = picioare (lowr)   6 = talpi (feet)
+--         8 = tricou/underlayer (accs)   11 = top/geaca (jbib)
+-- ----------------------------------------------------------
+Config.BodyHide = {
+    [0] = { -- Male
+        arms  = { { comp = 3,  drawable = 15, texture = 0 } },
+        torso = { { comp = 11, drawable = 15, texture = 0 }, { comp = 8, drawable = 15, texture = 0 } },
+        legs  = { { comp = 4,  drawable = 15, texture = 0 } },
+        feet  = { { comp = 6,  drawable = 34, texture = 0 } },
+    },
+    [1] = { -- Female
+        arms  = { { comp = 3,  drawable = 15, texture = 0 } },
+        torso = { { comp = 11, drawable = 15, texture = 0 }, { comp = 8, drawable = 15, texture = 0 } },
+        legs  = { { comp = 4,  drawable = 15, texture = 0 } },
+        feet  = { { comp = 6,  drawable = 35, texture = 0 } },
+    },
+}
+
 -- Iteme de haine primite in inventar imediat dupa creare (nu echipate).
 -- Cheile din ph_inventory Config.Items (type = 'clothing').
 Config.StarterClothing = { 'clothing_jacket', 'clothing_pants', 'clothing_shoes' }

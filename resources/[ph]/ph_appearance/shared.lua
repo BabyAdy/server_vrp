@@ -34,6 +34,16 @@ Appearance.OVERLAY_ORDER = {
     'blemishes', 'moles', 'makeup', 'blush', 'lipstick',
 }
 
+--- Regiuni de corp care pot fi ascunse din creator / /editcharacter (tab "Body").
+--- `key` intra in appearance.body ca boolean (true = ascuns).  Maparea reala
+--- key -> componente GTA + drawable "invizibil" e in Config.BodyHide[gender].
+Appearance.BODY_PARTS = {
+    { key = 'arms',  label = 'Arms & hands' },
+    { key = 'torso', label = 'Chest & abdomen' },
+    { key = 'legs',  label = 'Legs' },
+    { key = 'feet',  label = 'Feet' },
+}
+
 local function clampn(v, lo, hi, d)
     v = tonumber(v)
     if v == nil then return d end
@@ -54,6 +64,9 @@ function Appearance.Default(gender)
     end
     ov.eyebrows.style = 0   -- macar sprancene vizibile din start
 
+    local body = {}
+    for _, bp in ipairs(Appearance.BODY_PARTS) do body[bp.key] = false end
+
     return {
         gender   = gender,
         heritage = { mom = 0, dad = 0, shapeMix = 0.5, skinMix = 0.5 },
@@ -61,6 +74,7 @@ function Appearance.Default(gender)
         hair     = { style = 0, color = 0, highlight = 0 },
         overlays = ov,
         eyeColor = 0,
+        body     = body,
     }
 end
 
@@ -88,6 +102,10 @@ function Appearance.Clamp(a)
         }
     end
 
+    local bsrc = type(a.body) == 'table' and a.body or {}
+    local body = {}
+    for _, bp in ipairs(Appearance.BODY_PARTS) do body[bp.key] = bsrc[bp.key] == true end
+
     return {
         gender   = g,
         heritage = {
@@ -104,6 +122,7 @@ function Appearance.Clamp(a)
         },
         overlays = ov,
         eyeColor = math.floor(clampn(a.eyeColor, 0, 63, 0)),
+        body     = body,
     }
 end
 

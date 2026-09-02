@@ -3,56 +3,83 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
     <!-- ============ FACTION MENU  (/factionmenu) ============ -->
     <div id="menu" class="hidden">
-        <div class="win">
-            <div class="head">
-                <div>
-                    <span id="f-name">Faction Menu</span>
-                    <span id="f-role" class="pill"></span>
+        <div class="faction-container">
+            <!-- HEADER -->
+            <header class="faction-header">
+                <div class="header-left">
+                    <div class="logo"><img id="fm-logo" src="" alt="" class="logo-img" /></div>
+                    <div class="server-info">
+                        <span class="server-name" id="fm-server">Purple Havoc</span>
+                        <span class="menu-title">Faction Menu</span>
+                        <span class="faction-details">Faction:
+                            <span class="faction-id" id="fm-fid">[–]</span>
+                            <span class="faction-name" id="fm-fname">–</span>
+                        </span>
+                    </div>
                 </div>
-                <button id="close" class="x">&times;</button>
-            </div>
 
-            <div class="tabs">
-                <button data-mtab="members" class="active">Members</button>
-                <button data-mtab="logs">Logs</button>
-            </div>
+                <div class="user-profile">
+                    <span class="user-avatar" id="fm-avatar"></span>
+                    <span class="user-name" id="fm-uname">–</span>
+                    <button id="close" class="fm-x" title="Close (Esc)">&times;</button>
+                </div>
+            </header>
 
-            <div class="body">
-                <!-- Members -->
-                <section class="tab active" data-mtab="members">
-                    <div class="row-top">
-                        <input id="mem-search" placeholder="Search member..." />
-                    </div>
-                    <div class="mhead">
-                        <span class="c-av"></span>
-                        <span class="c-nm">Username</span>
-                        <span class="c-dy">Days</span>
-                        <span class="c-rk">Rank</span>
-                        <span class="c-bd">Badge</span>
-                        <span class="grow"></span>
-                        <span class="c-ac"></span>
-                    </div>
-                    <div id="members"></div>
-                </section>
+            <!-- NAVIGATION TABS -->
+            <nav class="faction-nav">
+                <button class="nav-btn active" data-mtab="members"><i class="fa-solid fa-users"></i> Members</button>
+                <button class="nav-btn" data-mtab="logs"><i class="fa-solid fa-file-lines"></i> Logs</button>
+            </nav>
 
-                <!-- Logs -->
-                <section class="tab" data-mtab="logs">
-                    <div class="lhead">
-                        <span class="l-tm">Time</span>
-                        <span class="l-ac">Actor</span>
-                        <span class="l-at">Action</span>
-                        <span class="l-tg">Target</span>
-                        <span class="l-dt">Detail</span>
-                    </div>
-                    <div id="logs"></div>
-                </section>
-            </div>
+            <!-- TAB: MEMBERS -->
+            <main class="tab-content active" id="members-tab">
+                <div class="table-wrapper">
+                    <table class="faction-table">
+                        <thead>
+                            <tr>
+                                <th>Avatar</th>
+                                <th>Username</th>
+                                <th>Days</th>
+                                <th>Rank</th>
+                                <th>Warns</th>
+                                <th>Badge</th>
+                                <th>Manage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="members"></tbody>
+                    </table>
+                </div>
+            </main>
 
-            <div class="foot"><span><b>Esc</b> close</span></div>
+            <!-- TAB: LOGS -->
+            <main class="tab-content" id="logs-tab">
+                <div class="table-wrapper">
+                    <table class="faction-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Actor</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs"></tbody>
+                    </table>
+                </div>
+                <div id="logs-empty" class="logs-placeholder hidden">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <p>No faction logs yet.</p>
+                </div>
+            </main>
+
+            <footer class="faction-foot"><span><b>Esc</b> close</span></footer>
         </div>
     </div>
 

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+<div id="clan" class="hidden">
+    <div class="clan-container">
+        <!-- Header -->
+        <header class="clan-header">
+            <div class="header-left">
+                <img id="c-logo" src="" alt="" class="logo" />
+                <div class="header-info">
+                    <div class="top-row"><span class="purple-text" id="c-server">Purple Havoc</span></div>
+                    <div class="bot-row">Server <span class="divider">|</span> <span class="highlight">Clan Menu</span></div>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="header-info">
+                    <div class="top-row">[ID: <span id="c-id">–</span>]</div>
+                    <div class="bot-row">
+                        Clan <span class="divider">|</span>
+                        <span class="highlight" id="c-name">–</span>
+                        <span class="pill" id="c-tag"></span>
+                        <span class="pill" id="c-role"></span>
+                        <span class="pill warn hidden" id="c-inactive">Inactive</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <span class="player-avatar" id="c-avatar"></span>
+                <span class="player-name" id="c-me">–</span>
+                <button id="c-close" class="close-x" title="Close (Esc)">&times;</button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="clan-nav">
+            <button class="nav-btn active" data-ctab="members"><i class="fa-solid fa-users"></i> Members</button>
+            <button class="nav-btn" data-ctab="vehicles"><i class="fa-solid fa-car"></i> Vehicles</button>
+            <button class="nav-btn" data-ctab="veh-management"><i class="fa-solid fa-bars-progress"></i> Vehicles Management</button>
+            <button class="nav-btn" data-ctab="logs"><i class="fa-solid fa-file-lines"></i> Clan Logs</button>
+            <button class="nav-btn" data-ctab="safebox"><i class="fa-solid fa-vault"></i> SafeBox</button>
+            <button class="nav-btn" data-ctab="info"><i class="fa-solid fa-circle-info"></i> Information</button>
+            <button class="nav-btn" data-ctab="settings" id="nav-settings"><i class="fa-solid fa-gear"></i> Settings</button>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="clan-content">
+            <!-- TAB: MEMBERS -->
+            <div id="tab-members" class="tab-content active">
+                <div class="members-toolbar" id="invite-row">
+                    <input type="number" id="inv-id" class="custom-input" placeholder="Invite by SQL id (nearby, online)" />
+                    <button class="btn-settings-save" id="inv-go"><i class="fa-solid fa-user-plus"></i> Invite</button>
+                </div>
+                <div class="members-toolbar">
+                    <input type="text" id="mem-search" class="custom-input" placeholder="Search member..." />
+                </div>
+                <div class="table-wrapper">
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th>Avatar</th>
+                                <th>Username</th>
+                                <th>Days</th>
+                                <th>Rank</th>
+                                <th>Warns</th>
+                                <th>Badge</th>
+                                <th>Permissions</th>
+                                <th class="th-manage">Manage</th>
+                                <th>Last Login</th>
+                            </tr>
+                        </thead>
+                        <tbody id="members-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB: VEHICLES -->
+            <div id="tab-vehicles" class="tab-content">
+                <div class="muted-line" id="veh-count"></div>
+                <div class="vehicles-grid" id="vehicles-grid"></div>
+            </div>
+
+            <!-- TAB: VEHICLE MANAGEMENT -->
+            <div id="tab-veh-management" class="tab-content">
+                <div class="veh-mgmt-header-actions">
+                    <button class="btn-buy-clan-veh" id="open-buy-modal">
+                        <i class="fa-solid fa-cart-plus"></i> Buy Clan Vehicle
+                    </button>
+                    <span class="muted-line" id="veh-mgmt-count"></span>
+                </div>
+                <div id="veh-mgmt-container" class="veh-mgmt-list"></div>
+            </div>
+
+            <!-- TAB: CLAN LOGS -->
+            <div id="tab-logs" class="tab-content">
+                <div class="table-wrapper">
+                    <table class="members-table logs-table">
+                        <thead>
+                            <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr>
+                        </thead>
+                        <tbody id="logs-body"></tbody>
+                    </table>
+                </div>
+                <p class="placeholder-text hidden" id="logs-empty">No clan logs yet.</p>
+            </div>
+
+            <!-- TAB: SAFEBOX -->
+            <div id="tab-safebox" class="tab-content">
+                <div class="safebox-dashboard">
+                    <div class="safebox-cards">
+                        <div class="safebox-card money-card">
+                            <div class="card-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
+                            <div class="card-details">
+                                <span class="card-label">Money Safebox</span>
+                                <span class="card-value" id="safebox-money">$0</span>
+                            </div>
+                        </div>
+                        <div class="safebox-card pp-card">
+                            <div class="card-icon"><i class="fa-solid fa-star"></i></div>
+                            <div class="card-details">
+                                <span class="card-label">Premium Points</span>
+                                <span class="card-value" id="safebox-pp">0 PP</span>
+                            </div>
+                        </div>
+                        <div class="safebox-card cp-card">
+                            <div class="card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                            <div class="card-details">
+                                <span class="card-label">Clan Points</span>
+                                <span class="card-value" id="safebox-cp">0 CP</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="safebox-actions-container">
+                        <h4 class="section-title"><i class="fa-solid fa-arrows-rotate"></i> SafeBox Actions</h4>
+                        <div class="safebox-actions-grid">
+                            <div class="action-box">
+                                <h5><i class="fa-solid fa-money-bill-wave"></i> Cash Operations</h5>
+                                <div class="input-group">
+                                    <input type="number" id="dep-money" min="1" placeholder="Amount ($)..." class="custom-input" />
+                                </div>
+                                <div class="action-buttons">
+                                    <button class="btn-action btn-success" data-dep="money"><i class="fa-solid fa-arrow-down-to-line"></i> Deposit</button>
+                                    <button class="btn-action btn-danger wd-btn" data-wd="money"><i class="fa-solid fa-arrow-up-from-line"></i> Withdraw</button>
+                                </div>
+                            </div>
+                            <div class="action-box">
+                                <h5><i class="fa-solid fa-star"></i> Premium Points</h5>
+                                <div class="input-group">
+                                    <input type="number" id="dep-pp" min="1" placeholder="Amount (PP)..." class="custom-input" />
+                                </div>
+                                <div class="action-buttons">
+                                    <button class="btn-action btn-success" data-dep="pp"><i class="fa-solid fa-arrow-down-to-line"></i> Deposit</button>
+                                    <button class="btn-action btn-danger wd-btn" data-wd="pp"><i class="fa-solid fa-arrow-up-from-line"></i> Withdraw</button>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="muted-line" id="wd-note">Withdraw is Leader only.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: INFORMATION -->
+            <div id="tab-info" class="tab-content">
+                <div class="settings-card">
+                    <h4 class="section-title"><i class="fa-solid fa-circle-info"></i> Clan Information</h4>
+                    <div class="info-grid" id="info-grid"></div>
+                </div>
+                <div class="settings-card">
+                    <h4 class="section-title"><i class="fa-solid fa-key"></i> Your Access</h4>
+                    <div class="info-grid" id="info-access"></div>
+                </div>
+            </div>
+
+            <!-- TAB: SETTINGS -->
+            <div id="tab-settings" class="tab-content">
+                <div class="settings-container">
+                    <div class="settings-card">
+                        <h4 class="section-title"><i class="fa-solid fa-ranking-star"></i> Clan Ranks (name &amp; colour)</h4>
+                        <div class="settings-stack" id="set-ranks"></div>
+                        <button class="btn-settings-save" id="set-ranks-go"><i class="fa-solid fa-arrows-rotate"></i> Save all ranks</button>
+                    </div>
+
+                    <div class="settings-card">
+                        <h4 class="section-title"><i class="fa-solid fa-palette"></i> Clan Chat Colour</h4>
+                        <div class="settings-row">
+                            <div class="settings-input-group">
+                                <label><i class="fa-solid fa-eye-dropper"></i> Colour used for /c messages</label>
+                                <div class="settings-input-row">
+                                    <input type="color" id="set-chatcolor" value="#b98cff" class="color-picker-input" />
+                                    <input type="text" id="set-chatcolor-hex" value="#b98cff" class="custom-input" placeholder="#HEX" />
+                                    <button class="btn-settings-save" id="set-chatcolor-go"><i class="fa-solid fa-arrows-rotate"></i> Update</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h4 class="section-title"><i class="fa-solid fa-bullhorn"></i> Message of the Day</h4>
+                        <div class="settings-row">
+                            <div class="settings-input-group">
+                                <label>Shown to members on connect (leave empty to clear)</label>
+                                <div class="settings-input-row">
+                                    <input type="text" id="set-motd" maxlength="200" class="custom-input" placeholder="Enter MOTD..." />
+                                    <button class="btn-settings-save" id="set-motd-go"><i class="fa-solid fa-arrows-rotate"></i> Save</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h4 class="section-title"><i class="fa-solid fa-comments"></i> Clan Chat Lock</h4>
+                        <div class="settings-row flex-between">
+                            <div class="settings-info">
+                                <span class="settings-title">Restrict /c access</span>
+                                <span class="settings-desc">Only members with rank equal or higher than selected can type on /c.</span>
+                            </div>
+                            <div class="settings-action">
+                                <select id="set-lock" class="custom-input select-rank"></select>
+                                <button class="btn-settings-save" id="set-lock-go">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h4 class="section-title"><i class="fa-solid fa-tag"></i> Your Clan Tag Style <span class="badge-pp">(personal)</span></h4>
+                        <div class="settings-row flex-between">
+                            <div class="settings-info">
+                                <span class="settings-title">Tag layout</span>
+                                <span class="settings-desc">Changes how <span id="tag-preview">[TAG] Name</span> appears for you.</span>
+                            </div>
+                            <div class="settings-action">
+                                <select id="set-tag" class="custom-input select-rank"></select>
+                                <button class="btn-settings-save" id="set-tag-go">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="clan-foot"><span><b>Esc</b> close</span></footer>
+    </div>
+
+    <!-- MODAL: Manage Permissions -->
+    <div class="modal-overlay" id="perm-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Manage Permissions — <span id="perm-modal-user">User</span></h3>
+                <span class="close-btn" data-close="perm-modal">&times;</span>
+            </div>
+            <div class="modal-body" id="perm-modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn-save" id="perm-save">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Change Rank -->
+    <div class="modal-overlay" id="rank-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Change Rank — <span id="rank-modal-user">User</span></h3>
+                <span class="close-btn" data-close="rank-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="rank-input" id="rank-input-label">Enter new rank:</label>
+                    <input type="number" id="rank-input" min="1" max="6" class="custom-input" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-save" id="rank-save">Update Rank</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Buy Clan Vehicle -->
+    <div class="modal-overlay" id="buy-modal">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-shop"></i> Buy Clan Vehicle</h3>
+                <span class="close-btn" data-close="buy-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="buy-cats" id="buy-cats">
+                    <button class="vcat active" data-bcat="all">All</button>
+                    <button class="vcat" data-bcat="car">Car</button>
+                    <button class="vcat" data-bcat="heli">Heli</button>
+                    <button class="vcat" data-bcat="boat">Boat</button>
+                </div>
+                <input type="text" id="buy-search" class="custom-input" placeholder="Search model or name..." style="margin-bottom:12px" />
+                <div class="shop-veh-list" id="shop-veh-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

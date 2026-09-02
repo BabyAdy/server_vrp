@@ -1,8 +1,6 @@
 -- ==========================================================
 --  ph_clans / clan_cmd  -  TOATE comenzile / ale clanurilor
 --
---  CLIENT: (nimic in Faza 1 - meniul /clan vine in Faza 2)
---
 --  SERVER:
 --    /c <mesaj>                     - chat de clan
 --    /togc                          - ascunde / arata clan chat-ul
@@ -17,11 +15,19 @@
 --    /clanreq list|accept <id>|reject <id>   - staff >= leadadmin
 --    /editclan <id> <field> <value> - staff >= manager  (field: name|tag|days|money|pp|cp)
 --
+--  CLIENT (Faza 2):
+--    /clan  /clanmenu               - deschide meniul NUI (7 tab-uri)
+--    /cvr                           - Clan Vehicle Request : respawn / summon
+--
 --  Fisierul e incarcat si pe client, si pe server (vezi fxmanifest).
 -- ==========================================================
 
 if not IsDuplicityVersion() then
-    -- ================= CLIENT ================= (Faza 2: /clan)
+    -- ================= CLIENT =================
+    local function openClanMenu() TriggerServerEvent('ph_clans:sv:openMenu') end
+    RegisterCommand('clan', openClanMenu, false)
+    RegisterCommand('clanmenu', openClanMenu, false)
+    RegisterCommand('cvr', function() TriggerServerEvent('ph_clans:sv:cvr') end, false)
     return
 end
 
@@ -87,6 +93,7 @@ RegisterCommand('quitclan', function(src)
     local cid = m.clan
     m.clan, m.rank, m.warns, m.perms, m.join = 0, 0, 0, {}, nil
     E.saveMember(uid)
+    E.pushClan(uid)
     E.clog(cid, uid, 'quit', uid)
     E.notify(src, ('You left %s.'):format(c.name), 'info')
 end, false)
@@ -155,6 +162,7 @@ RegisterCommand('acceptcinvite', function(src, args)
     m.join = os.date('%Y-%m-%d %H:%M:%S')
     MEMBER[uid] = m
     E.saveMember(uid)
+    E.pushClan(uid)
     INVITES[uid] = nil
     E.clog(inv.clan, inviterSqlId, 'invite', uid)
     E.notify(src, ('You joined %s.'):format(c.name), 'success')
@@ -364,6 +372,9 @@ local function pushSuggestions(target)
     s('/clantag', 'Choose your clan tag style (1-6)', { { name = '1-6' } })
     s('/clanreq', 'Review clan-creation requests (staff >= leadadmin)', { { name = 'list|accept|reject' }, { name = 'id' } })
     s('/editclan', 'Edit a clan (staff >= manager)', { { name = 'id' }, { name = 'field' }, { name = 'value' } })
+    s('/clan', 'Open the clan menu (Members, Vehicles, Safebox, Settings…)')
+    s('/clanmenu', 'Open the clan menu')
+    s('/cvr', 'Clan Vehicle Request — respawn / summon your clan vehicle')
 end
 
 AddEventHandler('onResourceStart', function(res)

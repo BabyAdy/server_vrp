@@ -2,14 +2,18 @@
 --  ph_clans / config  (shared)
 --  Sistemul de clanuri.  Faza 1: chat, ranguri, permisiuni, safebox,
 --  tag-uri, MOTD, expirare pe zile, unelte de staff.
---  Faza 2 (mai tarziu): meniul /clan (NUI) + vehiculele de clan.
+--  Faza 2: meniul /clan (NUI, 7 tab-uri) + vehiculele de clan.
 -- ==========================================================
 Config = Config or {}
 
+-- Header-ul meniului /clan
+Config.ServerName = 'Purple Havoc'
+Config.MenuLogo   = 'https://i.imgur.com/eAfdBdO.png'   -- URL sau nui://... ; gol = ascuns
+
 Config.RankCount    = 7
 Config.RankLeader   = 7          -- clan_rank 7
-Config.RankCoLeader = 6          -- clan_rank 6 (are acces la "Manage")
-Config.InviteRank   = 5          -- /cinvite, /cvr : clan_rank >= 5 (sau permisiune)
+Config.RankCoLeader = 6          -- clan_rank 6 (are acces la "Manage" + tab-ul Settings)
+Config.InviteRank   = 5          -- /cinvite, /cvr, spawn vehicul : clan_rank >= 5 (sau permisiune)
 Config.WarnCap      = 3
 
 -- Nume implicite de rang (7) + culori (7).  Fiecare clan si le poate customiza.
@@ -56,3 +60,45 @@ Config.TagStyles = {
 Config.RequestGrade = 'leadadmin'
 -- Gradul de staff pentru /editclan
 Config.EditGrade    = 'manager'
+
+-- ==========================================================
+--  FAZA 2  -  meniul /clan  +  vehiculele de clan
+-- ==========================================================
+
+-- Cine deschide /clan (orice membru) si cine vede tab-ul Settings.
+Config.MenuMinRank  = 1
+Config.SettingsRank  = Config.RankCoLeader   -- 6+ : rank names/colors, chat color, MOTD, chat lock
+
+-- Cate randuri de log arata tab-ul "Clan Logs".
+Config.LogLimit     = 100
+
+-- ---- Vehicule de clan ------------------------------------
+-- Spawn / Despawn / /cvr : clan_rank >= InviteRank SAU permisiunea "vehmgmt".
+-- Buy / Sell / Upgrade    : clan_rank >= RankCoLeader SAU permisiunea "vehmgmt".
+Config.VehSpawnRadius = 6.0     -- cat de aproape de vehicul trebuie sa fii ca sa il "Despawn"
+Config.VehDespawnMin  = 15      -- un vehicul de clan gol dispare dupa atatea minute
+Config.VehMaxPerClan  = 20      -- cate vehicule poate detine un clan
+
+-- Pret la cumparare : pretul din catalogul ph_vehicles daca e > 0, altfel
+-- valoarea de mai jos, pe categorie.  Se plateste din safebox-ul `$`.
+Config.VehFallbackPrice = { car = 15000, heli = 120000, boat = 40000 }
+
+-- La "Sell" se ramburseaza acest procent din pretul curent, inapoi in safebox `$`.
+Config.VehSellRefundPct = 0.5
+
+-- Upgrade : creste nivelul de performanta (0..maxLevel).  Fiecare nivel costa
+-- `costPerLevel` din safebox-ul `$` si aplica mod-urile de mai jos la spawn.
+Config.VehUpgrade = { maxLevel = 4, costPerLevel = 25000 }
+
+--- Aplica pe client mod-urile de performanta pentru un nivel de upgrade dat.
+--  level 0 = stock.  Apelat din client.lua dupa CreateVehicle.
+function Config.ApplyUpgradeMods(veh, level)
+    level = math.max(0, math.min(Config.VehUpgrade.maxLevel, math.floor(tonumber(level) or 0)))
+    SetVehicleModKit(veh, 0)
+    -- 11 engine, 12 brakes, 13 transmission, 15 suspension, 18 turbo
+    local val = level - 1                       -- mod index 0-based (level 1 -> mod 0)
+    for _, slot in ipairs({ 11, 12, 13, 15 }) do
+        SetVehicleMod(veh, slot, val >= 0 and val or -1, false)
+    end
+    ToggleVehicleMod(veh, 18, level >= Config.VehUpgrade.maxLevel)   -- turbo la nivel maxim
+end

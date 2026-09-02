@@ -12,7 +12,14 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-const S = { mode: 'create', ap: null, maxes: {}, tab: 'heritage', targetName: '', template: null };
+const S = { mode: 'create', ap: null, maxes: {}, tab: 'heritage', targetName: '', template: null, bodyParts: [] };
+
+const BODY_PARTS_FALLBACK = [
+    { key: 'arms', label: 'Arms & hands' },
+    { key: 'torso', label: 'Chest & abdomen' },
+    { key: 'legs', label: 'Legs' },
+    { key: 'feet', label: 'Feet' },
+];
 
 const OVL_COLOR  = { beard: 1, eyebrows: 1, makeup: 2, blush: 2, lipstick: 2 };
 const OVL_FEMALE = { makeup: 1, blush: 1, lipstick: 1 };
@@ -34,6 +41,7 @@ function tabList() {
     const t = [['heritage', 'Heritage'], ['face', 'Face'], ['hair', 'Hair'],
         ['brows', 'Brows'], ['beard', 'Beard'], ['eyes', 'Eyes'], ['skin', 'Skin']];
     if (S.ap && S.ap.gender === 1) t.push(['makeup', 'Makeup']);
+    t.push(['body', 'Body']);
     return t;
 }
 
@@ -69,6 +77,21 @@ function ctlStepper(label, min, max, val, disp, on) {
         v = clamp(v + Number(b.dataset.d), min, max);
         render(); on(v);
     });
+    render();
+    return c;
+}
+function ctlToggle(label, val, on) {
+    const c = el('div', 'ctl');
+    c.innerHTML = `<div class="row"><label>${label}</label>
+        <button type="button" class="toggle" role="switch"></button></div>`;
+    const btn = c.querySelector('.toggle');
+    let v = !!val;
+    const render = () => {
+        btn.classList.toggle('on', v);
+        btn.textContent = v ? 'Hidden' : 'Shown';
+        btn.setAttribute('aria-checked', v ? 'true' : 'false');
+    };
+    btn.onclick = () => { v = !v; render(); on(v); };
     render();
     return c;
 }
@@ -163,10 +186,23 @@ function tabSkin() {
 function tabMakeup() {
     return ['makeup', 'blush', 'lipstick'].map((k) => overlayControls(k, makeupPalette));
 }
+function tabBody() {
+    const g = grp('Hide body parts');
+    const parts = (S.bodyParts && S.bodyParts.length) ? S.bodyParts : BODY_PARTS_FALLBACK;
+    if (!S.ap.body || typeof S.ap.body !== 'object') S.ap.body = {};
+    parts.forEach(({ key, label }) => {
+        g.append(ctlToggle(label, !!S.ap.body[key], (v) => {
+            S.ap.body[key] = v;
+            post('paUpdate', { section: 'body', key, value: v });
+        }));
+    });
+    g.append(el('p', 'hint', 'A hidden part only shows while that slot has nothing equipped from the inventory.'));
+    return [g];
+}
 
 const TAB_FN = {
     heritage: tabHeritage, face: tabFace, hair: tabHair, brows: tabBrows,
-    beard: tabBeard, eyes: tabEyes, skin: tabSkin, makeup: tabMakeup,
+    beard: tabBeard, eyes: tabEyes, skin: tabSkin, makeup: tabMakeup, body: tabBody,
 };
 
 /* --------------------------------------------------- render */
@@ -253,6 +289,7 @@ window.addEventListener('message', (ev) => {
         S.targetId = x.targetId;
         S.targetName = x.targetName || '';
         S.template = x.template || null;
+        S.bodyParts = x.bodyParts || [];
         S.tab = 'heritage';
         renderAll();
         showRoot();
@@ -261,12 +298,14 @@ window.addEventListener('message', (ev) => {
         S.ap = x.appearance;
         S.maxes = x.maxes || S.maxes;
         S.template = x.template || null;
+        if (x.bodyParts) S.bodyParts = x.bodyParts;
         renderAll();
     } else if (d.action === 'setAll') {
         const x = d.data || {};
         S.ap = x.appearance;
         S.maxes = x.maxes || S.maxes;
         S.template = null;
+        if (x.bodyParts) S.bodyParts = x.bodyParts;
         renderAll();
     } else if (d.action === 'close') {
         hideRoot();

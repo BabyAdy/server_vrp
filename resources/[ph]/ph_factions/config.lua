@@ -1,5 +1,10 @@
 Config = {}
 
+-- numele serverului, afisat in header-ul /factionmenu
+Config.ServerName = 'Purple Havoc'
+-- logo afisat in header-ul /factionmenu (URL sau nui://... ; lasa gol ca sa-l ascunzi)
+Config.MenuLogo   = 'https://i.imgur.com/eAfdBdO.png'
+
 -- ----------------------------------------------------------
 --  Acces
 -- ----------------------------------------------------------
