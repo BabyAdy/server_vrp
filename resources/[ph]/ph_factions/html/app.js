@@ -16,6 +16,49 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[c]);
 
+/* ---- in-menu dialog : replaces window.prompt / window.confirm -------------
+   uiConfirm(message, {okText, danger}) -> Promise<boolean>
+   uiPrompt(message, {value, placeholder, type, min, max, okText}) -> Promise<string|null> */
+function uiModal({ title, message, prompt = false, value = '', placeholder = '', type = 'text',
+                  min, max, okText = 'Confirm', cancelText = 'Cancel', danger = false }) {
+    const ov = $('#ui-modal');
+    $('#ui-modal-title').textContent = title || (prompt ? 'Enter a value' : 'Please confirm');
+    const msg = $('#ui-modal-msg');
+    msg.textContent = message || '';
+    msg.classList.toggle('hidden', !message);
+    const inp = $('#ui-modal-input');
+    inp.classList.toggle('hidden', !prompt);
+    if (prompt) {
+        inp.type = type;
+        inp.value = value == null ? '' : String(value);
+        inp.placeholder = placeholder;
+        if (min != null) inp.min = min; else inp.removeAttribute('min');
+        if (max != null) inp.max = max; else inp.removeAttribute('max');
+    }
+    const ok = $('#ui-modal-ok'), cancel = $('#ui-modal-cancel');
+    ok.textContent = okText; cancel.textContent = cancelText;
+    ok.classList.toggle('danger', !!danger);
+    ov.classList.add('show');
+    if (prompt) setTimeout(() => { inp.focus(); inp.select(); }, 20);
+    return new Promise((resolve) => {
+        const done = (val) => {
+            ov.classList.remove('show');
+            ok.onclick = cancel.onclick = inp.onkeydown = ov.onclick = null;
+            resolve(val);
+        };
+        ok.onclick = () => done(prompt ? inp.value : true);
+        cancel.onclick = () => done(prompt ? null : false);
+        ov.onclick = (e) => { if (e.target === ov) done(prompt ? null : false); };
+        inp.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); done(inp.value); }
+            else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+        };
+    });
+}
+const uiConfirm = (message, opts = {}) => uiModal({ message, okText: opts.okText || 'Confirm', danger: opts.danger });
+const uiPrompt = (message, opts = {}) => uiModal(Object.assign({ message, prompt: true, okText: opts.okText || 'OK' }, opts));
+function uiModalOpen() { return $('#ui-modal').classList.contains('show'); }
+
 const S = { data: null, mtab: 'members', dev: null, dtab: 'create', efcat: 'car' };
 
 const mop = (payload) => post('menu', payload);
@@ -101,18 +144,25 @@ function renderMembers() {
         </tr>`;
     }).join('') || '<tr><td colspan="7" class="no-action">No members.</td></tr>';
 
-    $$('#members [data-a]').forEach((b) => b.onclick = () => {
+    $$('#members [data-a]').forEach((b) => b.onclick = async () => {
         const a = b.dataset.a, u = Number(b.dataset.u);
         const name = b.dataset.n || ('#' + u);
         if (a === 'setRank') {
             const max = (S.data.rankLeader || 7) - 1;
-            const v = parseInt(prompt(`New rank for ${name} (1-${max}):`, ''), 10);
+            const raw = await uiPrompt(`New rank for ${esc(name)} (1-${max}):`, {
+                title: 'Change rank', type: 'number', min: 1, max, okText: 'Set rank',
+            });
+            const v = parseInt(raw, 10);
             if (v >= 1 && v <= max) mop({ op: 'setRank', userId: u, rank: v });
         } else if (a === 'warn') {
-            const reason = prompt(`Warn reason for ${name}:`) || '';
-            mop({ op: 'warn', userId: u, reason });
+            const reason = await uiPrompt(`Faction warn for ${esc(name)} — reason (optional):`, {
+                title: 'Give faction warn', placeholder: 'e.g. AFK on duty', okText: 'Give warn',
+            });
+            if (reason !== null) mop({ op: 'warn', userId: u, reason: reason || '' });
         } else if (a === 'uninvite') {
-            if (confirm(`Uninvite ${name} from the faction?`)) mop({ op: 'uninvite', userId: u });
+            if (await uiConfirm(`Remove ${esc(name)} from the faction?`, { okText: 'Uninvite', danger: true })) {
+                mop({ op: 'uninvite', userId: u });
+            }
         } else {
             mop({ op: a, userId: u });
         }
@@ -192,8 +242,10 @@ function renderEdit() {
         });
     });
     $('#ef-vehicles').innerHTML = rows || '<div class="muted">No vehicles.</div>';
-    $$('#ef-vehicles [data-vd]').forEach((b) => b.onclick = () => {
-        if (confirm('Remove this vehicle?')) dop({ op: 'removeVehicle', vehId: Number(b.dataset.vd) });
+    $$('#ef-vehicles [data-vd]').forEach((b) => b.onclick = async () => {
+        if (await uiConfirm('Remove this vehicle from the faction?', { okText: 'Remove', danger: true })) {
+            dop({ op: 'removeVehicle', vehId: Number(b.dataset.vd) });
+        }
     });
     $$('#ef-vehicles [data-vr]').forEach((i) => i.onchange = () =>
         dop({ op: 'setVehicleRank', vehId: Number(i.dataset.vr), minRank: Number(i.value) || 1 }));
@@ -273,8 +325,10 @@ $('#ef-setmanager').onclick = () => {
     if (v) dop({ op: 'setManager', userId: v });
 };
 $('#ef-seed').onclick = () => dop({ op: 'seedVanilla', minRank: Number($('#ef-seedrank').value) || 3 });
-$('#ef-delete').onclick = () => {
-    if (confirm('Permanently DELETE this faction and remove all its members?')) dop({ op: 'deleteFaction' });
+$('#ef-delete').onclick = async () => {
+    if (await uiConfirm('Permanently DELETE this faction and remove all its members?', { okText: 'Delete faction', danger: true })) {
+        dop({ op: 'deleteFaction' });
+    }
 };
 
 /* ============================================================ garage (unchanged) */
@@ -327,6 +381,7 @@ window.addEventListener('message', (ev) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (uiModalOpen()) { $('#ui-modal-cancel').click(); return; }
     if (!$('#garage').classList.contains('hidden')) { post('close'); $('#garage').classList.add('hidden'); return; }
     if (!$('#menu').classList.contains('hidden') || !$('#devmenu').classList.contains('hidden')) {
         post('close').then(hideAll);

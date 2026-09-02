@@ -8,6 +8,8 @@ local startTime = os.time()
 local frozen = {}      -- [userId] = bool  (SQL id, nu session id)
 local S2U    = {}      -- [src] = userId  (cache pentru curatenie la disconnect)
 local banCache = {}    -- [license] = { id, reason, expires_at }
+local GODMODE = {}     -- [userId] = true  (Home -> God Mode)
+local INVIS   = {}     -- [userId] = true  (Home -> Invisible)
 local pushNoclip       -- forward-declarat; definit mai jos (folosit si in staff_menu:sv:dev)
 
 -- ----------------------------------------------------------
@@ -75,6 +77,15 @@ local SCHEMA = {
       `warned_by_name` VARCHAR(24) NULL,
       `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (`id`), KEY `idx_warns_user` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;]],
+
+    [[CREATE TABLE IF NOT EXISTS `chat_logs` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      `user_id` INT UNSIGNED NULL,
+      `username` VARCHAR(24) NOT NULL,
+      `message` VARCHAR(300) NOT NULL,
+      `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (`id`), KEY `idx_chatlogs_user` (`user_id`), KEY `idx_chatlogs_time` (`created_at`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;]],
 }
 
@@ -280,18 +291,44 @@ end
 -- ----------------------------------------------------------
 --  Deschidere meniu
 -- ----------------------------------------------------------
-RegisterNetEvent('staff_menu:sv:open', function()
+--- lista gradelor, ordonata de la cel mai mare la cel mai mic (Owner ... Trial Helper)
+local function orderedGrades()
+    local grades = exports[PH_CORE]:GetStaffGrades() or {}
+    local keys = {}
+    for k in pairs(grades) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b)
+        return (exports[PH_CORE]:StaffRankOf(a) or 0) > (exports[PH_CORE]:StaffRankOf(b) or 0)
+    end)
+    local order = {}
+    for _, k in ipairs(keys) do
+        order[#order + 1] = { key = k, label = grades[k].label or k, color = grades[k].color or '#b98cff' }
+    end
+    return order
+end
+
+RegisterNetEvent('staff_menu:sv:open', function(tab)
     local src = source
     if not ready then return toast(src, 'Staff menu is initializing...', 'warning') end
     if not exports[PH_CORE]:HasStaffRank(src, Config.MinGrade) then return end
 
     local sc = charOf(src)
+    local g = sc and exports[PH_CORE]:GetStaffGrade(sc.staff or '') or nil
     TriggerClientEvent('staff_menu:cl:open', src, {
-        me = { id = sc and sc.id, name = sc and sc.username, staff = sc and sc.staff, rank = rankIdx(src) },
+        server = { name = Config.ServerName, logo = Config.Logo },
+        me = {
+            id = sc and sc.id, name = sc and sc.username,
+            staff = sc and sc.staff, rank = rankIdx(src),
+            gradeLabel = g and g.label or 'Staff', gradeColor = g and g.color or '#b98cff',
+        },
+        tab = tab or 'home',
         perms = permMap(src),
         staffActions = Config.StaffActions,
         grades = exports[PH_CORE]:GetStaffGrades(),
+        gradeList = orderedGrades(),
+        clothingPieces = Config.StaffClothingPieces,
+        ticketColors = Config.TicketTypeColors,
         categories = Config.TicketCategories,
+        home = { god = GODMODE[sc and sc.id] == true, invis = INVIS[sc and sc.id] == true },
     })
 end)
 
@@ -301,18 +338,273 @@ RegisterNetEvent('staff_menu:sv:players', function()
     TriggerClientEvent('staff_menu:cl:data', src, { tab = 'players', list = playerList() })
 end)
 
+-- ==========================================================
+--  HOME  -  haine de staff, godmode, invisible, respawn
+-- ==========================================================
+RegisterNetEvent('staff_menu:sv:home', function(p)
+    local src = source
+    if not ready or not can(src, 'tab_home') then return end
+    p = p or {}
+    local sc = charOf(src)
+    if not sc then return end
+    local op = p.op
+
+    local function homeState()
+        TriggerClientEvent('staff_menu:cl:data', src, { tab = 'home',
+            state = { god = GODMODE[sc.id] == true, invis = INVIS[sc.id] == true } })
+    end
+
+    if op == 'godmode' then
+        GODMODE[sc.id] = not GODMODE[sc.id] or nil
+        TriggerClientEvent('staff_menu:cl:godmode', src, GODMODE[sc.id] == true)
+        toast(src, ('God Mode %s.'):format(GODMODE[sc.id] and 'ON' or 'OFF'), 'success')
+        logAction(src, 'godmode', sc.username, sc.id, GODMODE[sc.id] and 'on' or 'off')
+        homeState()
+
+    elseif op == 'invis' then
+        INVIS[sc.id] = not INVIS[sc.id] or nil
+        local on = INVIS[sc.id] == true
+        TriggerClientEvent('staff_menu:cl:invis', src, on)
+        TriggerClientEvent('staff_menu:cl:invisState', -1, src, on)   -- ceilalti te ascund
+        toast(src, ('Invisible %s.'):format(on and 'ON' or 'OFF'), 'success')
+        logAction(src, 'invisible', sc.username, sc.id, on and 'on' or 'off')
+        homeState()
+
+    elseif op == 'respawn' then
+        TriggerClientEvent('staff_menu:cl:respawn', src)
+        logAction(src, 'respawn_self', sc.username, sc.id)
+
+    elseif op == 'cloth' then
+        local piece = tostring(p.pieceId or '')
+        local grade = p.grade and tostring(p.grade) or (sc.staff or '')
+        -- Dev Tools poate cere orice grad ; Home foloseste gradul propriu
+        if p.grade and not can(src, 'tab_developer') then grade = sc.staff or '' end
+        if grade == '' then return toast(src, 'You have no staff grade.', 'error') end
+        local item = Config.StaffClothingItem(grade, piece)
+        if GetResourceState('ph_inventory') ~= 'started' then
+            return toast(src, 'Inventory is unavailable.', 'error')
+        end
+        local ok = exports['ph_inventory']:GiveItem(sc.id, item, 1)
+        if ok then
+            toast(src, ('Added "%s" to your inventory.'):format(item), 'success')
+            logAction(src, 'staff_cloth', sc.username, sc.id, item)
+        else
+            toast(src, ('Item "%s" is not configured / inventory full.'):format(item), 'error')
+        end
+    end
+end)
+
+exports('IsGod',    function(userId) return GODMODE[userId] == true end)
+exports('IsInvis',  function(userId) return INVIS[userId] == true end)
+
+-- ==========================================================
+--  PLAYERS  -  pagina de detalii + loguri + moderare
+-- ==========================================================
+local function factionInfoOf(userId)
+    local ok, row = pcall(function()
+        return MySQL.single.await([[
+            SELECT u.faction AS fid, u.faction_rank AS frank, f.f_name AS fname, f.ranks AS franks
+            FROM users u LEFT JOIN factions f ON f.id = u.faction WHERE u.id = ?]], { userId })
+    end)
+    if not ok or not row or not row.fid or tonumber(row.fid) == 0 then
+        return { name = 'None', rank = nil }
+    end
+    local rankName = 'Rank ' .. tostring(row.frank)
+    local okj, ranks = pcall(json.decode, row.franks or '')
+    if okj and type(ranks) == 'table' and ranks[tonumber(row.frank)] then
+        rankName = ranks[tonumber(row.frank)]
+    end
+    return { name = row.fname or ('#' .. row.fid), rank = ('%s (%s)'):format(rankName, row.frank) }
+end
+
+local function playerDetail(userId)
+    userId = tonumber(userId)
+    if not userId then return nil end
+    local u = MySQL.single.await('SELECT id, username, staff, warns FROM users WHERE id = ?', { userId })
+    if not u then return nil end
+    local g = u.staff ~= '' and exports[PH_CORE]:GetStaffGrade(u.staff) or nil
+    local fac = factionInfoOf(userId)
+    local onlineSrc = srcByUserId(userId)
+
+    return {
+        id       = u.id,
+        name     = u.username,
+        staff    = u.staff ~= '' and u.staff or nil,
+        staffLabel = g and g.label or (u.staff ~= '' and u.staff) or 'NONE',
+        staffColor = g and g.color or '#8a93a5',
+        warns    = tonumber(u.warns) or 0,
+        faction  = fac.name,
+        factionRank = fac.rank,
+        online   = onlineSrc ~= nil,
+        logs = {
+            warns = MySQL.query.await(
+                'SELECT reason, warned_by_name, created_at FROM warns WHERE user_id = ? ORDER BY id DESC LIMIT 50', { userId }) or {},
+            kicks = MySQL.query.await(
+                "SELECT staff_name, detail, created_at FROM staff_logs WHERE action = 'kick' AND target_id = ? ORDER BY id DESC LIMIT 50", { userId }) or {},
+            bans = MySQL.query.await(
+                'SELECT reason, banned_by_name, created_at, expires_at, active FROM bans WHERE user_id = ? ORDER BY id DESC LIMIT 50', { userId }) or {},
+            chats = MySQL.query.await(
+                'SELECT message, created_at FROM chat_logs WHERE user_id = ? ORDER BY id DESC LIMIT 60', { userId }) or {},
+        },
+    }
+end
+
+RegisterNetEvent('staff_menu:sv:player', function(p)
+    local src = source
+    if not ready or not can(src, 'tab_players') then return end
+    p = p or {}
+    if p.op == 'get' then
+        local d = playerDetail(p.id)
+        if not d then return toast(src, ('No user with id %s.'):format(tostring(p.id)), 'error') end
+        TriggerClientEvent('staff_menu:cl:data', src, { tab = 'playerDetail', detail = d })
+    end
+end)
+
+-- moderare din pagina Players  (warn / kick / ban / ban_offline / unban)
+RegisterNetEvent('staff_menu:sv:pmod', function(p)
+    local src = source
+    if not ready then return end
+    p = p or {}
+    local action = tostring(p.action or '')
+    if not Config.Perms[action] then return end
+    if not requirePerm(src, action) then return end
+
+    local sc = charOf(src)
+    if not sc then return end
+    local tId = tonumber(p.targetId)
+    if not tId then return toast(src, 'Invalid target.', 'error') end
+    local reason = tostring(p.reason or ''):sub(1, 300)
+    local days = math.max(0, math.min(Config.MaxBanDays, math.floor(tonumber(p.days) or 0)))
+
+    local function refresh()
+        local d = playerDetail(tId)
+        if d then TriggerClientEvent('staff_menu:cl:data', src, { tab = 'playerDetail', detail = d }) end
+    end
+
+    -- tinta (username + license) din DB ; sursa online daca exista
+    local u = MySQL.single.await('SELECT id, username, license, staff FROM users WHERE id = ?', { tId })
+    if not u then return toast(src, 'No such user.', 'error') end
+    local tSrc = srcByUserId(tId)
+    -- protectie: nu poti actiona pe staff de rang egal/mai mare (nici pe tine)
+    if u.staff and u.staff ~= '' and (exports[PH_CORE]:StaffRankOf(u.staff) or 0) >= rankIdx(src) then
+        return toast(src, 'You cannot moderate staff of equal or higher rank.', 'error')
+    end
+
+    if action == 'warn' then
+        if #reason < 2 then return toast(src, 'Reason too short.', 'error') end
+        MySQL.insert('INSERT INTO warns (user_id, username, reason, warned_by, warned_by_name) VALUES (?,?,?,?,?)',
+            { u.id, u.username, reason, sc.id, sc.username })
+        MySQL.update('UPDATE users SET warns = LEAST(3, warns + 1) WHERE id = ?', { u.id })
+        if tSrc then notify(tSrc, ('WARNING from %s: %s'):format(sc.username, reason), '#ff5a5a') end
+        notifyStaff(('%s warned %s [ID:%s]: %s'):format(sc.username, u.username, u.id, reason), '#e0c07a')
+        logAction(src, 'warn', u.username, u.id, reason)
+        toast(src, ('Warned %s.'):format(u.username), 'success')
+
+    elseif action == 'kick' then
+        if not tSrc then return toast(src, 'The player is not online.', 'error') end
+        if #reason < 2 then reason = 'unspecified' end
+        notifyStaff(('%s kicked %s [ID:%s]: %s'):format(sc.username, u.username, u.id, reason), '#e0c07a')
+        logAction(src, 'kick', u.username, u.id, reason)
+        DropPlayer(tSrc, ('Kicked by %s\nReason: %s'):format(sc.username, reason))
+
+    elseif action == 'ban' or action == 'ban_offline' then
+        if action == 'ban' and not tSrc then return toast(src, 'The player is not online (use Ban Offline).', 'error') end
+        if #reason < 2 then return toast(src, 'Reason too short.', 'error') end
+        local expires = days > 0 and (os.time() + days * 86400) or nil
+        local license = tSrc and exports[PH_CORE]:GetLicense(tSrc) or u.license
+        local id = MySQL.insert.await(
+            'INSERT INTO bans (user_id, license, username, reason, banned_by, banned_by_name, expires_at) VALUES (?,?,?,?,?,?,?)',
+            { u.id, license, u.username, reason, sc.id, sc.username, expires })
+        if license then banCache[license] = { id = id, reason = reason, expires_at = expires } end
+        notifyStaff(('%s banned %s [ID:%s] (%s): %s'):format(
+            sc.username, u.username, u.id, days > 0 and (days .. ' days') or 'permanent', reason), '#ff5a5a')
+        logAction(src, action, u.username, u.id, ('%s | %s'):format(days > 0 and (days .. 'd') or 'perm', reason))
+        if tSrc then
+            DropPlayer(tSrc, ('BANNED by %s\nReason: %s\n%s\nBan ID: #%s'):format(
+                sc.username, reason, expires and ('Expires: ' .. os.date('%d.%m.%Y %H:%M', expires)) or 'Permanent', id))
+        end
+        toast(src, ('Banned %s (#%s).'):format(u.username, id), 'success')
+
+    elseif action == 'unban' then
+        local aff = MySQL.update.await('UPDATE bans SET active = 0 WHERE user_id = ? AND active = 1', { u.id })
+        loadBans()
+        logAction(src, 'unban', u.username, u.id, reason ~= '' and reason or nil)
+        toast(src, (aff and aff > 0) and ('Unbanned %s.'):format(u.username) or 'No active ban found.',
+            (aff and aff > 0) and 'success' or 'warning')
+    end
+
+    refresh()
+end)
+
+-- ==========================================================
+--  Ticket thread (vederea de staff, similara cu /ticket)
+-- ==========================================================
+local function ticketReplies(ticketId)
+    local rows = MySQL.query.await([[
+        SELECT r.author_id, r.author_name, r.is_staff, r.message, r.created_at, u.staff AS author_staff
+        FROM ticket_replies r LEFT JOIN users u ON u.id = r.author_id
+        WHERE r.ticket_id = ? ORDER BY r.id ASC]], { ticketId }) or {}
+    local out = {}
+    for _, r in ipairs(rows) do
+        local isStaff = (tonumber(r.is_staff) or 0) ~= 0
+        local grade
+        if isStaff and r.author_staff and r.author_staff ~= '' then
+            local gg = exports[PH_CORE]:GetStaffGrade(r.author_staff)
+            grade = { key = r.author_staff, label = gg and gg.label or r.author_staff, color = gg and gg.color or '#37ff00' }
+        end
+        out[#out + 1] = {
+            authorId = r.author_id, authorName = r.author_name, isStaff = isStaff,
+            message = r.message, createdAt = tostring(r.created_at or ''), grade = grade,
+        }
+    end
+    return out
+end
+
+RegisterNetEvent('staff_menu:sv:ticketThread', function(p)
+    local src = source
+    if not ready or not can(src, 'tab_tickets') then return end
+    p = p or {}
+    local id = tonumber(p.id)
+    if not id then return end
+    local row = MySQL.single.await('SELECT * FROM tickets WHERE id = ?', { id })
+    if not row then return toast(src, 'Ticket not found.', 'error') end
+    local u = row.user_id and MySQL.single.await('SELECT username, warns FROM users WHERE id = ?', { row.user_id }) or nil
+    TriggerClientEvent('staff_menu:cl:data', src, { tab = 'ticketThread', thread = {
+        id           = id,
+        status       = row.status,
+        category     = row.category,
+        message      = row.message,
+        createdAt    = tostring(row.created_at or ''),
+        assignedId   = row.assigned_to and tonumber(row.assigned_to) or nil,
+        assignedName = row.assigned_name,
+        playerUserId = row.user_id and tonumber(row.user_id) or nil,
+        playerName   = (u and u.username) or row.username,
+        playerWarns  = u and (tonumber(u.warns) or 0) or 0,
+        playerOnline = row.user_id and (srcByUserId(row.user_id) ~= nil) or false,
+        replies      = ticketReplies(id),
+    } })
+end)
+
 -- ----------------------------------------------------------
 --  Tickete
 -- ----------------------------------------------------------
+--- ph_tickets detine tabelele de tickete ; daca ruleaza, delegam catre el
+--- (asa firul de chat al jucatorului din /ticket se actualizeaza live).
+local function tickets()
+    return GetResourceState('ph_tickets') == 'started' and exports['ph_tickets'] or nil
+end
+
 local function pushTickets(src)
-    local rows = MySQL.query.await(
+    local T = tickets()
+    local rows = (T and T:GetOpen()) or MySQL.query.await(
         "SELECT id, user_id, username, category, message, created_at FROM tickets WHERE status='open' ORDER BY id ASC LIMIT 100") or {}
     TriggerClientEvent('staff_menu:cl:data', src, { tab = 'tickets', list = rows })
 end
 
 local function pushActive(src)
     local sc = charOf(src)
-    local rows = MySQL.query.await(
+    local T = tickets()
+    local rows = (T and sc and T:GetActiveFor(sc.id)) or MySQL.query.await(
         "SELECT id, user_id, username, category, message, created_at, updated_at FROM tickets WHERE status='active' AND assigned_to = ? ORDER BY updated_at DESC LIMIT 100",
         { sc and sc.id or 0 }) or {}
     TriggerClientEvent('staff_menu:cl:data', src, { tab = 'active', list = rows })
@@ -332,37 +624,55 @@ RegisterNetEvent('staff_menu:sv:ticket', function(p)
         pushActive(src)
     elseif op == 'accept' then
         local id = tonumber(p.id); if not id then return end
-        local aff = MySQL.update.await(
-            "UPDATE tickets SET status='active', assigned_to=?, assigned_name=? WHERE id=? AND status='open'",
-            { sc.id, sc.username, id })
-        if aff and aff > 0 then
-            local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
-            local psrc = t and srcByUserId(t.user_id)
-            if psrc then notify(psrc, ('Your ticket #%s was picked up by %s.'):format(id, sc.username), '#8ce07a') end
-            notifyStaff(('%s accepted ticket #%s.'):format(sc.username, id), '#a89bc7')
-            logAction(src, 'ticket_accept', nil, nil, '#' .. id)
+        local T = tickets()
+        if T then
+            if T:Accept(src, id) then
+                notifyStaff(('%s accepted ticket #%s.'):format(sc.username, id), '#a89bc7')
+                logAction(src, 'ticket_accept', nil, nil, '#' .. id)
+            end
+        else
+            local aff = MySQL.update.await(
+                "UPDATE tickets SET status='active', assigned_to=?, assigned_name=? WHERE id=? AND status='open'",
+                { sc.id, sc.username, id })
+            if aff and aff > 0 then
+                local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
+                local psrc = t and srcByUserId(t.user_id)
+                if psrc then notify(psrc, ('Your ticket #%s was picked up by %s.'):format(id, sc.username), '#8ce07a') end
+                notifyStaff(('%s accepted ticket #%s.'):format(sc.username, id), '#a89bc7')
+                logAction(src, 'ticket_accept', nil, nil, '#' .. id)
+            end
         end
         pushTickets(src); pushActive(src)
     elseif op == 'close' then
         local id = tonumber(p.id); if not id then return end
-        MySQL.update.await(
-            "UPDATE tickets SET status='closed', closed_at=NOW() WHERE id=? AND status<>'closed'", { id })
-        local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
-        local psrc = t and srcByUserId(t.user_id)
-        if psrc then notify(psrc, ('Your ticket #%s was closed.'):format(id), '#e0c07a') end
+        local T = tickets()
+        if T then
+            T:Close(src, id)
+        else
+            MySQL.update.await(
+                "UPDATE tickets SET status='closed', closed_at=NOW() WHERE id=? AND status<>'closed'", { id })
+            local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
+            local psrc = t and srcByUserId(t.user_id)
+            if psrc then notify(psrc, ('Your ticket #%s was closed.'):format(id), '#e0c07a') end
+        end
         logAction(src, 'ticket_close', nil, nil, '#' .. id)
         pushTickets(src); pushActive(src)
     elseif op == 'reply' then
         local id = tonumber(p.id)
         local text = tostring(p.text or ''):sub(1, 300)
         if not id or #text < 1 then return end
-        MySQL.insert.await(
-            'INSERT INTO ticket_replies (ticket_id, author_id, author_name, is_staff, message) VALUES (?,?,?,1,?)',
-            { id, sc.id, sc.username, text })
-        MySQL.update.await('UPDATE tickets SET updated_at=NOW() WHERE id=?', { id })
-        local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
-        local psrc = t and srcByUserId(t.user_id)
-        if psrc then notify(psrc, ('[Ticket #%s] %s: %s'):format(id, sc.username, text), '#b98cff') end
+        local T = tickets()
+        if T then
+            T:Reply(src, id, text, true)
+        else
+            MySQL.insert.await(
+                'INSERT INTO ticket_replies (ticket_id, author_id, author_name, is_staff, message) VALUES (?,?,?,1,?)',
+                { id, sc.id, sc.username, text })
+            MySQL.update.await('UPDATE tickets SET updated_at=NOW() WHERE id=?', { id })
+            local t = MySQL.single.await('SELECT user_id FROM tickets WHERE id=?', { id })
+            local psrc = t and srcByUserId(t.user_id)
+            if psrc then notify(psrc, ('[Ticket #%s] %s: %s'):format(id, sc.username, text), '#b98cff') end
+        end
         logAction(src, 'ticket_reply', nil, nil, '#' .. id)
     elseif op == 'goto' then
         local id = tonumber(p.id); if not id then return end
@@ -583,6 +893,15 @@ RegisterNetEvent('staff_menu:sv:reqNoclipList', function()
     end
 end)
 
+--- ... si lista staff-ului invizibil (Home -> Invisible)
+RegisterNetEvent('staff_menu:sv:reqInvisList', function()
+    local src = source
+    for uid in pairs(INVIS) do
+        local osrc = srcByUserId(uid)
+        if osrc then TriggerClientEvent('staff_menu:cl:invisState', src, osrc, true) end
+    end
+end)
+
 -- ----------------------------------------------------------
 --  Conectare / deconectare: cache local + anunturi de staff
 -- ----------------------------------------------------------
@@ -608,6 +927,11 @@ AddEventHandler('playerDropped', function(reason)
     if not rec then return end
 
     frozen[rec.id] = nil
+    GODMODE[rec.id] = nil
+    if INVIS[rec.id] then
+        INVIS[rec.id] = nil
+        TriggerClientEvent('staff_menu:cl:invisState', -1, source, false)
+    end
 
     -- anunt de staff doar daca cel care pleaca era staff >= NoticeMinGrade
     local minRank = exports[PH_CORE]:StaffRankOf(Config.NoticeMinGrade or 'trialhelper') or 0
@@ -615,6 +939,29 @@ AddEventHandler('playerDropped', function(reason)
     if minRank > 0 and rank >= minRank then
         local kind = isCrashReason(reason) and 'crash' or 'disconnect'
         staffNotice(kind, rec.id, rec.name, rec.staff, reason)
+    end
+end)
+
+-- ----------------------------------------------------------
+--  Chat logs  (pentru pagina Players -> "Chat Logs")
+--  ph_chat declanseaza `chatMessage` pe server la fiecare mesaj public.
+-- ----------------------------------------------------------
+AddEventHandler('chatMessage', function(src, _name, msg)
+    if not ready or type(msg) ~= 'string' then return end
+    if msg == '' or msg:sub(1, 1) == '/' then return end
+    local sc = charOf(src)
+    MySQL.insert('INSERT INTO chat_logs (user_id, username, message) VALUES (?,?,?)',
+        { sc and sc.id or nil, (sc and sc.username) or tostring(_name or '?'):sub(1, 24), msg:sub(1, 300) })
+end)
+
+CreateThread(function()
+    while true do
+        Wait(3600000)   -- o data pe ora
+        if ready then
+            pcall(function()
+                MySQL.query('DELETE FROM chat_logs WHERE created_at < (NOW() - INTERVAL 14 DAY)')
+            end)
+        end
     end
 end)
 

@@ -8,8 +8,8 @@ local specTarget = nil
 -- ----------------------------------------------------------
 --  Deschidere (declansat de ph-core dupa /staffmenu)
 -- ----------------------------------------------------------
-RegisterNetEvent('ph-core:staff:openMenu', function()
-    TriggerServerEvent('staff_menu:sv:open')
+RegisterNetEvent('ph-core:staff:openMenu', function(d)
+    TriggerServerEvent('staff_menu:sv:open', d and d.tab or nil)
 end)
 
 RegisterNetEvent('staff_menu:cl:open', function(data)
@@ -52,6 +52,26 @@ end)
 
 RegisterNUICallback('dev', function(data, cb)
     TriggerServerEvent('staff_menu:sv:dev', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('home', function(data, cb)
+    TriggerServerEvent('staff_menu:sv:home', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('player', function(data, cb)
+    TriggerServerEvent('staff_menu:sv:player', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('pmod', function(data, cb)
+    TriggerServerEvent('staff_menu:sv:pmod', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('ticketThread', function(data, cb)
+    TriggerServerEvent('staff_menu:sv:ticketThread', data)
     cb('ok')
 end)
 
@@ -174,6 +194,7 @@ AddEventHandler('onClientResourceStart', function(res)
     if res ~= GetCurrentResourceName() then return end
     TriggerServerEvent('staff_menu:sv:reqNoclip')
     TriggerServerEvent('staff_menu:sv:reqNoclipList')
+    TriggerServerEvent('staff_menu:sv:reqInvisList')
     TriggerEvent('chat:addSuggestion', '/heal', 'Set 100% HP (no id = yourself)', { { name = 'sqlId', help = 'optional' } })
     TriggerEvent('chat:addSuggestion', '/revive', 'Revive with 100% HP (no id = yourself)', { { name = 'sqlId', help = 'optional' } })
     TriggerEvent('chat:addSuggestion', '/dv', 'Delete the nearest vehicle')
@@ -195,6 +216,7 @@ end)
 AddEventHandler('ph-core:client:playerLoaded', function()
     TriggerServerEvent('staff_menu:sv:reqNoclip')
     TriggerServerEvent('staff_menu:sv:reqNoclipList')
+    TriggerServerEvent('staff_menu:sv:reqInvisList')
 end)
 
 --- viteza curenta (toate sunt disponibile - noclip e doar pentru staff)
@@ -255,12 +277,36 @@ local function setNoclip(state)
     pushNoclipHud()
 end
 
--- F2 (rebindabil din Settings > Key Bindings)
-RegisterCommand('+phNoclip', function()
+-- F2 : toggle noclip.  Doua cai spre acelasi toggle, cu debounce ca sa nu se
+-- anuleze reciproc daca ambele prind aceeasi apasare:
+--   1) RegisterKeyMapping  -> apare in Settings > Key Bindings, rebindabil
+--   2) poll direct pe tasta -> merge si daca jucatorul nu are bind-ul salvat
+local lastNoclipToggle = 0
+local function toggleNoclip()
+    local now = GetGameTimer()
+    if now - lastNoclipToggle < 300 then return end
+    lastNoclipToggle = now
     if noclipAllowed then setNoclip(not noclip) end
-end, false)
+end
+
+RegisterCommand('+phNoclip', function() toggleNoclip() end, false)
 RegisterCommand('-phNoclip', function() end, false)
 RegisterKeyMapping('+phNoclip', 'Staff: Toggle Noclip', 'keyboard', (Config.Noclip and Config.Noclip.Key) or 'F2')
+
+local NC_RAW_KEY = (Config.Noclip and Config.Noclip.RawKey) or 289   -- 289 = F2
+CreateThread(function()
+    while true do
+        if noclipAllowed then
+            if NC_RAW_KEY and not menuOpen and not IsPauseMenuActive()
+                and IsControlJustPressed(0, NC_RAW_KEY) then
+                toggleNoclip()
+            end
+            Wait(0)
+        else
+            Wait(500)
+        end
+    end
+end)
 
 -- bucla de miscare
 local NC_KILL = {
@@ -326,48 +372,61 @@ CreateThread(function()
 end)
 
 -- ----------------------------------------------------------
---  Ceilalti jucatori NU vad pe cel din noclip (nici ped, nici nametag).
---  ph_nametag verifica IsEntityVisible(ped) -> nametag-ul dispare automat.
+--  Ceilalti jucatori NU vad staff-ul din noclip / invizibil (nici ped, nici
+--  nametag).  ph_nametag verifica IsEntityVisible(ped) -> nametag-ul dispare.
 -- ----------------------------------------------------------
 local hiddenNoclip = {}   -- [serverId] = true
+local hiddenInvis  = {}   -- [serverId] = true
+local function stillHidden(sid) return hiddenNoclip[sid] or hiddenInvis[sid] end
+
+local function restorePlayer(serverId)
+    local ply = GetPlayerFromServerId(serverId)
+    if ply == -1 then return end
+    local pd = GetPlayerPed(ply)
+    if pd ~= 0 and DoesEntityExist(pd) then
+        SetEntityVisible(pd, true, false)
+        ResetEntityAlpha(pd)
+        SetEntityNoCollisionEntity(PlayerPedId(), pd, true)
+        local v = GetVehiclePedIsIn(pd, false)
+        if v ~= 0 then SetEntityVisible(v, true, false); ResetEntityAlpha(v) end
+    end
+end
 
 RegisterNetEvent('staff_menu:cl:noclipState', function(serverId, on)
-    if serverId == GetPlayerServerId(PlayerId()) then return end   -- pe tine te gestioneaza setNoclip()
-    if on then
-        hiddenNoclip[serverId] = true
-    else
-        hiddenNoclip[serverId] = nil
-        local ply = GetPlayerFromServerId(serverId)
-        if ply ~= -1 then
-            local pd = GetPlayerPed(ply)
-            if pd ~= 0 and DoesEntityExist(pd) then
-                SetEntityVisible(pd, true, false)
-                ResetEntityAlpha(pd)
-                SetEntityNoCollisionEntity(PlayerPedId(), pd, true)
-                local v = GetVehiclePedIsIn(pd, false)
-                if v ~= 0 then SetEntityVisible(v, true, false); ResetEntityAlpha(v) end
-            end
-        end
-    end
+    if serverId == GetPlayerServerId(PlayerId()) then return end
+    hiddenNoclip[serverId] = on and true or nil
+    if not stillHidden(serverId) then restorePlayer(serverId) end
+end)
+
+RegisterNetEvent('staff_menu:cl:invisState', function(serverId, on)
+    if serverId == GetPlayerServerId(PlayerId()) then return end
+    hiddenInvis[serverId] = on and true or nil
+    if not stillHidden(serverId) then restorePlayer(serverId) end
 end)
 
 CreateThread(function()
     while true do
-        if next(hiddenNoclip) ~= nil then
+        if next(hiddenNoclip) ~= nil or next(hiddenInvis) ~= nil then
             local myPed = PlayerPedId()
-            for sid in pairs(hiddenNoclip) do
-                local ply = GetPlayerFromServerId(sid)
-                if ply ~= -1 then
-                    local pd = GetPlayerPed(ply)
-                    if pd ~= 0 and DoesEntityExist(pd) then
-                        SetEntityLocallyInvisible(pd)
-                        SetEntityVisible(pd, false, false)
-                        SetEntityNoCollisionEntity(myPed, pd, false)
-                        local v = GetVehiclePedIsIn(pd, false)
-                        if v ~= 0 then
-                            SetEntityLocallyInvisible(v)
-                            SetEntityVisible(v, false, false)
-                            SetEntityNoCollisionEntity(myPed, v, false)
+            local seen = {}
+            for _, set in ipairs({ hiddenNoclip, hiddenInvis }) do
+                for sid in pairs(set) do
+                    if not seen[sid] then
+                        seen[sid] = true
+                        local ply = GetPlayerFromServerId(sid)
+                        if ply ~= -1 then
+                            local pd = GetPlayerPed(ply)
+                            if pd ~= 0 and DoesEntityExist(pd) then
+                                SetEntityLocallyInvisible(pd)
+                                SetEntityVisible(pd, false, false)
+                                SetEntityNoCollisionEntity(myPed, pd, false)
+                                local v = GetVehiclePedIsIn(pd, false)
+                                if v ~= 0 then
+                                    SetEntityLocallyInvisible(v)
+                                    SetEntityVisible(v, false, false)
+                                    SetEntityNoCollisionEntity(myPed, v, false)
+                                end
+                            end
                         end
                     end
                 end
@@ -375,6 +434,62 @@ CreateThread(function()
             Wait(0)
         else
             Wait(500)
+        end
+    end
+end)
+
+-- ----------------------------------------------------------
+--  HOME : God Mode / Invisible / Respawn  (pe clientul apelantului)
+-- ----------------------------------------------------------
+local godMode = false
+local invisSelf = false
+
+RegisterNetEvent('staff_menu:cl:godmode', function(on)
+    godMode = on == true
+    local ped = PlayerPedId()
+    SetEntityInvincible(ped, godMode)
+    SetPlayerInvincible(PlayerId(), godMode)
+    SetPedCanRagdoll(ped, not godMode)
+    SetPedDiesWhenInjured(ped, not godMode)
+    if not godMode then SetEntityInvincible(ped, false); SetPlayerInvincible(PlayerId(), false) end
+end)
+
+RegisterNetEvent('staff_menu:cl:invis', function(on)
+    invisSelf = on == true
+    local ped = PlayerPedId()
+    if invisSelf then
+        SetEntityAlpha(ped, 100, false)   -- tu te vezi slab ; ceilalti nu te vad deloc (broadcast)
+    else
+        ResetEntityAlpha(ped)
+    end
+end)
+
+RegisterNetEvent('staff_menu:cl:respawn', function()
+    local ped = PlayerPedId()
+    local c = GetEntityCoords(ped)
+    NetworkResurrectLocalPlayer(c.x, c.y, c.z, GetEntityHeading(ped), true, false)
+    SetEntityHealth(ped, GetEntityMaxHealth(ped))
+    SetPedArmour(ped, 0)
+    ClearPedBloodDamage(ped)
+    ClearPedTasksImmediately(ped)
+    SendNUIMessage({ action = 'toast', text = 'Respawned.' })
+end)
+
+-- re-aplica god mode / invizibilitate proprie (persist dupa re-spawn de ped)
+CreateThread(function()
+    while true do
+        if godMode or invisSelf then
+            local ped = PlayerPedId()
+            if godMode then
+                SetEntityInvincible(ped, true)
+                SetPlayerInvincible(PlayerId(), true)
+            end
+            if invisSelf then
+                SetEntityAlpha(ped, 100, false)   -- re-aplica dupa schimbari de ped
+            end
+            Wait(300)
+        else
+            Wait(600)
         end
     end
 end)

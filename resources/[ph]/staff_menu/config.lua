@@ -1,12 +1,54 @@
 Config = {}
 
--- Meniul se deschide cu /staffmenu (comanda e inregistrata in ph-core, care
--- trimite evenimentul `ph-core:staff:openMenu` catre acest resource).
+-- Antetul minimalist (logo + numele serverului) - stanga sus in toate meniurile.
+Config.ServerName = 'Purple Havoc'
+Config.Logo       = 'https://i.imgur.com/eAfdBdO.png'   -- URL (gol = ascuns)
+
+-- Meniul se deschide cu /staffmenu (tab Home) sau /tk (tab Tickets).
+-- Comenzile sunt inregistrate in ph-core (trimite `ph-core:staff:openMenu`).
 -- Grad minim ca sa poti deschide meniul:
 Config.MinGrade = 'trialhelper'
 
--- Categorii acceptate pentru /ticket  (prima e implicita)
+-- ----------------------------------------------------------
+--  Haine de staff  (tab-ul Home + Dev Tools)
+--    Cele 6 butoane din Home ; item-ul se da dupa GRADUL jucatorului.
+--    In Dev Tools apar toate gradele (dev poate testa orice).
+--  Item-ul e dat din inventar prin  exports['ph_inventory']:GiveItem .
+-- ----------------------------------------------------------
+Config.StaffClothingPieces = {
+    { id = 'mask_m',   label = 'Masca Staff (M)',   sex = 'm' },
+    { id = 'mask_f',   label = 'Masca Staff (F)',   sex = 'f' },
+    { id = 'tshirt_m', label = 'Tricou Staff (M)',  sex = 'm' },
+    { id = 'tshirt_f', label = 'Tricou Staff (F)',  sex = 'f' },
+    { id = 'hoodie_m', label = 'Hanorac Staff (M)', sex = 'm' },
+    { id = 'hoodie_f', label = 'Hanorac Staff (F)', sex = 'f' },
+}
+
+-- Suprascrieri punctuale de nume de item : Config.StaffClothingItems[grade][pieceId]
+Config.StaffClothingItems = {
+    -- ['owner'] = { mask_m = 'staff_owner_mask_m', hoodie_f = 'staff_owner_hoodie_f', ... },
+}
+
+--- numele item-ului din ph_inventory pentru (grad, piesa).
+--- schema implicita:  staff_<grad>_<pieceId>   (ex: staff_owner_mask_m)
+function Config.StaffClothingItem(grade, pieceId)
+    grade = tostring(grade or 'none')
+    local o = Config.StaffClothingItems[grade]
+    if o and o[pieceId] then return o[pieceId] end
+    return ('staff_%s_%s'):format(grade, tostring(pieceId or ''))
+end
+
+-- Categorii acceptate pentru vechiul /ticket text (pastrate pentru compat).
 Config.TicketCategories = { 'general', 'bug', 'report', 'question', 'refund' }
+
+-- Culoare pe tipul de ticket (dupa gravitate) - folosita in UI.
+Config.TicketTypeColors = {
+    question  = '#4db8ff',
+    general   = '#eab308',
+    highstaff = '#ef4444',
+    -- fallback-uri pentru tipurile vechi
+    bug = '#eab308', report = '#f97316', refund = '#a855f7',
+}
 
 Config.MaxBanDays = 3650            -- 0 zile la ban = permanent
 Config.PlayerRefreshMs = 5000       -- cat de des se reimprospateaza lista de playeri in meniu
@@ -32,7 +74,8 @@ Config.Discord = {
 --    Vitezele se deblocheaza in functie de level-ul personajului (users.level).
 -- ----------------------------------------------------------
 Config.Noclip = {
-    Key       = 'F2',
+    Key       = 'F2',    -- default afisat in Settings > Key Bindings (rebindabil)
+    RawKey    = 289,      -- poll direct pe tasta (289 = F2) ca sa mearga si fara bind salvat
     MinGrade  = 'trialadmin',
     SelfAlpha = 150,   -- cat de transparent te vezi TU cat esti in noclip (0-255); ceilalti nu te vad deloc
     -- Noclip e strict pentru staff -> toate vitezele sunt disponibile mereu.
@@ -58,13 +101,14 @@ Config.CrashReasons = {
 -- ----------------------------------------------------------
 Config.Perms = {
     -- tab-uri
-    tab_staff       = 'trialhelper',
+    tab_home        = 'trialhelper',
+    tab_staff       = 'trialhelper',   -- (pastrat pentru compat cu vechiul tab)
     tab_tickets     = 'trialhelper',
     tab_active      = 'trialhelper',
     tab_players     = 'trialhelper',
-    tab_developer   = 'manager',
+    tab_developer   = 'developer',     -- "Dev Tools"
 
-    -- actiuni pe jucatori
+    -- actiuni pe jucatori  (panoul Players)
     goto_player     = 'trialhelper',
     bring_player    = 'helper',
     spectate        = 'helper',
@@ -72,9 +116,10 @@ Config.Perms = {
     revive          = 'trialadmin',
     heal            = 'trialadmin',
     warn            = 'trialadmin',
-    kick            = 'junioradmin',
-    ban             = 'generaladmin',
-    unban           = 'headadmin',
+    kick            = 'trialadmin',
+    ban             = 'trialadmin',
+    ban_offline     = 'headadmin',
+    unban           = 'leadadmin',
     announce        = 'junioradmin',
 
     -- vehicule (comenzi)

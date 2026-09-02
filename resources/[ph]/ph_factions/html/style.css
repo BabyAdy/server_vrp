@@ -280,6 +280,39 @@ select { width: 100%; margin-bottom: 12px; }
 #menu .faction-foot { padding: 10px 26px; border-top: 1px solid #334155; font-size: 12px; color: #94a3b8; }
 #menu .faction-foot b { background: rgba(255, 255, 255, .12); padding: 1px 5px; border-radius: 4px; color: #fff; }
 
+/* in-menu dialog (prompt / confirm replacement) — top-level, works over any panel */
+#ui-modal {
+    position: absolute; inset: 0; z-index: 200;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(8, 12, 22, .62); font-family: 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+}
+#ui-modal.show { display: flex; }
+#ui-modal .ui-modal-box {
+    width: 400px; max-width: 90vw;
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+}
+#ui-modal .ui-modal-title { font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+#ui-modal .ui-modal-msg { font-size: 13px; color: #cbd5e1; line-height: 1.45; margin-bottom: 14px; }
+#ui-modal .ui-modal-msg.hidden { display: none; }
+#ui-modal .ui-modal-input {
+    width: 100%; margin-bottom: 16px; padding: 9px 11px;
+    background: #0f172a; border: 1px solid #334155; border-radius: 7px;
+    color: #f8fafc; font-size: 14px; font-family: inherit; outline: none;
+}
+#ui-modal .ui-modal-input.hidden { display: none; }
+#ui-modal .ui-modal-input:focus { border-color: #3b82f6; }
+#ui-modal .ui-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+#ui-modal .ui-modal-btn {
+    border: none; padding: 8px 16px; border-radius: 7px;
+    font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+#ui-modal .ui-modal-btn.ghost { background: #334155; color: #e2e8f0; }
+#ui-modal .ui-modal-btn.ghost:hover { background: #3f4d63; }
+#ui-modal .ui-modal-btn.primary { background: #3b82f6; color: #fff; }
+#ui-modal .ui-modal-btn.primary:hover { opacity: .9; }
+#ui-modal .ui-modal-btn.primary.danger { background: #ef4444; }
+
 /* ---------------------------------------------------- garage */
 #g-list { padding: 12px 16px 16px; max-height: 52vh; overflow-y: auto; }
 .grow-veh {

@@ -300,6 +300,19 @@
             </div>
         </div>
     </div>
+
+    <!-- Generic dialog (replaces browser prompt/confirm) -->
+    <div class="ui-modal-overlay" id="ui-modal">
+        <div class="ui-modal-box">
+            <div class="ui-modal-title" id="ui-modal-title">Confirm</div>
+            <div class="ui-modal-msg" id="ui-modal-msg"></div>
+            <input type="text" class="ui-modal-input" id="ui-modal-input" />
+            <div class="ui-modal-actions">
+                <button class="ui-modal-btn ghost" id="ui-modal-cancel">Cancel</button>
+                <button class="ui-modal-btn primary" id="ui-modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="app.js"></script>

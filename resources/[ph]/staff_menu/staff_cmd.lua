@@ -26,44 +26,7 @@ local E = SMENV
 local charOf, notify, notifyStaff, toast = E.charOf, E.notify, E.notifyStaff, E.toast
 local requirePerm, srcByUserId, logRaw   = E.requirePerm, E.srcByUserId, E.logRaw
 
--- ----------------------------------------------------------
---  /ticket  (jucatori)
--- ----------------------------------------------------------
-local function inList(t, v)
-    for _, x in ipairs(t) do if x == v then return true end end
-    return false
-end
-
-RegisterCommand('ticket', function(src, args)
-    if src == 0 then return end
-    local char = charOf(src)
-    if not char then return notify(src, 'You are not authenticated.', '#e07a7a') end
-
-    local category = 'general'
-    if args[1] and inList(Config.TicketCategories, args[1]:lower()) then
-        category = table.remove(args, 1):lower()
-    end
-    local msg = table.concat(args, ' '):gsub('^%s+', ''):gsub('%s+$', '')
-    if #msg < 3 then
-        return exports[PH_CORE]:CmdSyntax(src, '/ticket [category] [message]')
-    end
-
-    if not E.isReady() then return notify(src, 'The ticket system is not ready.', '#e07a7a') end
-
-    local open = MySQL.scalar.await(
-        "SELECT id FROM tickets WHERE user_id = ? AND status IN ('open','active') LIMIT 1", { char.id })
-    if open then
-        return notify(src, ('You already have an open ticket (#%s).'):format(open), '#e0c07a')
-    end
-
-    local id = MySQL.insert.await(
-        'INSERT INTO tickets (user_id, username, category, message) VALUES (?,?,?,?)',
-        { char.id, char.username, category, msg:sub(1, 500) })
-
-    notify(src, ('Ticket #%s created (%s). A staff member will contact you.'):format(id, category), '#8ce07a')
-    notifyStaff(('[TICKET] #%s (%s) from %s [ID: %s]: %s'):format(
-        id, category, char.username, char.id, msg:sub(1, 120)), '#b98cff')
-end, false)
+-- /ticket (jucatori) e acum in resursa dedicata  ph_tickets  (meniu NUI).
 
 -- ----------------------------------------------------------
 --  /heal  si  /revive   (staff >= trialadmin)

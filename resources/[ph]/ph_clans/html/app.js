@@ -29,6 +29,49 @@ function monogram(name, px) {
 const hex6 = (c) => (/^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : (/^#[0-9a-f]{3}$/i.test(String(c))
     ? '#' + String(c).slice(1).split('').map((x) => x + x).join('') : '#b98cff'));
 
+/* ---- in-menu dialog : replaces window.prompt / window.confirm ----------
+   uiConfirm(message, {okText, danger}) -> Promise<boolean>
+   uiPrompt(message, {value, placeholder, type, min, max, okText}) -> Promise<string|null> */
+function uiModal({ title, message, prompt = false, value = '', placeholder = '', type = 'text',
+                  min, max, okText = 'Confirm', cancelText = 'Cancel', danger = false }) {
+    const ov = $('#ui-modal');
+    $('#ui-modal-title').textContent = title || (prompt ? 'Enter a value' : 'Please confirm');
+    const msg = $('#ui-modal-msg');
+    msg.textContent = message || '';
+    msg.classList.toggle('hidden', !message);
+    const inp = $('#ui-modal-input');
+    inp.classList.toggle('hidden', !prompt);
+    if (prompt) {
+        inp.type = type;
+        inp.value = value == null ? '' : String(value);
+        inp.placeholder = placeholder;
+        if (min != null) inp.min = min; else inp.removeAttribute('min');
+        if (max != null) inp.max = max; else inp.removeAttribute('max');
+    }
+    const ok = $('#ui-modal-ok'), cancel = $('#ui-modal-cancel');
+    ok.textContent = okText; cancel.textContent = cancelText;
+    ok.classList.toggle('danger', !!danger);
+    ov.classList.add('show');
+    if (prompt) setTimeout(() => { inp.focus(); inp.select(); }, 20);
+    return new Promise((resolve) => {
+        const done = (val) => {
+            ov.classList.remove('show');
+            ok.onclick = cancel.onclick = inp.onkeydown = ov.onclick = null;
+            resolve(val);
+        };
+        ok.onclick = () => done(prompt ? inp.value : true);
+        cancel.onclick = () => done(prompt ? null : false);
+        ov.onclick = (e) => { if (e.target === ov) done(prompt ? null : false); };
+        inp.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); done(inp.value); }
+            else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+        };
+    });
+}
+const uiConfirm = (message, opts = {}) => uiModal({ message, okText: opts.okText || 'Confirm', danger: opts.danger, title: opts.title });
+const uiPrompt = (message, opts = {}) => uiModal(Object.assign({ message, prompt: true, okText: opts.okText || 'OK' }, opts));
+const uiModalOpen = () => $('#ui-modal').classList.contains('show');
+
 const S = {
     data: null, catalog: [], ctab: 'members',
     memSearch: '', bcat: 'all', buySearch: '',
@@ -149,13 +192,22 @@ function renderMembers() {
         </tr>`;
     }).join('') || `<tr><td colspan="9" class="no-info">No members.</td></tr>`;
 
-    $$('#members-body [data-a]').forEach((b) => b.onclick = () => {
+    $$('#members-body [data-a]').forEach((b) => b.onclick = async () => {
         const a = b.dataset.a, u = Number(b.dataset.u);
+        const m = (S.data.members || []).find((x) => x.id === u);
+        const nm = m ? esc(m.name) : ('#' + u);
         if (a === 'rankModal') openRankModal(u);
         else if (a === 'permModal') openPermModal(u);
-        else if (a === 'warn') cop({ op: 'warn', userId: u, reason: prompt('Warn reason (optional):') || '' });
-        else if (a === 'kick') { if (confirm('Kick this member from the clan?')) cop({ op: 'kick', userId: u }); }
-        else cop({ op: a, userId: u });
+        else if (a === 'warn') {
+            const reason = await uiPrompt(`Clan warn for ${nm} — reason (optional):`, {
+                title: 'Give clan warn', placeholder: 'e.g. broke clan rules', okText: 'Give warn',
+            });
+            if (reason !== null) cop({ op: 'warn', userId: u, reason: reason || '' });
+        } else if (a === 'kick') {
+            if (await uiConfirm(`Kick ${nm} from the clan?`, { okText: 'Kick', danger: true })) {
+                cop({ op: 'kick', userId: u });
+            }
+        } else cop({ op: a, userId: u });
     });
 }
 
@@ -222,12 +274,14 @@ function renderVehManagement() {
 }
 
 function wireVehButtons(scope) {
-    $$(`${scope} [data-a]`).forEach((b) => b.onclick = () => {
+    $$(`${scope} [data-a]`).forEach((b) => b.onclick = async () => {
         const a = b.dataset.a, v = Number(b.dataset.v);
         if (a === 'vehSell') {
-            if (confirm(`Sell this vehicle? Refund is ${Math.round((cfg().sellPct || 0) * 100)}% of its price.`)) cop({ op: a, vehId: v });
+            if (await uiConfirm(`Sell this vehicle? Refund is ${Math.round((cfg().sellPct || 0) * 100)}% of its price, paid into the money safebox.`,
+                { title: 'Sell clan vehicle', okText: 'Sell', danger: true })) cop({ op: a, vehId: v });
         } else if (a === 'vehUpgrade') {
-            if (confirm(`Upgrade this vehicle for $${fmt(cfg().upgradeCost)} from the safebox?`)) cop({ op: a, vehId: v });
+            if (await uiConfirm(`Upgrade this vehicle one level for $${fmt(cfg().upgradeCost)} from the money safebox?`,
+                { title: 'Upgrade clan vehicle', okText: 'Upgrade' })) cop({ op: a, vehId: v });
         } else {
             cop({ op: a, vehId: v });
         }
@@ -257,8 +311,9 @@ function renderBuyList() {
         + (all.length > shown.length ? `<div class="no-info">…and ${all.length - shown.length} more — refine your search.</div>` : '')
         || `<div class="placeholder-text">No matching vehicles.</div>`;
 
-    $$('#shop-veh-list [data-buy]').forEach((b) => b.onclick = () => {
-        if (confirm(`Buy "${b.dataset.buy}" for the clan (paid from the money safebox)?`)) {
+    $$('#shop-veh-list [data-buy]').forEach((b) => b.onclick = async () => {
+        if (await uiConfirm(`Buy "${esc(b.dataset.buy)}" for the clan? It is paid from the money safebox.`,
+            { title: 'Buy clan vehicle', okText: 'Buy' })) {
             cop({ op: 'vehBuy', model: b.dataset.buy });
             closeModal('buy-modal');
         }
@@ -473,6 +528,7 @@ window.addEventListener('message', (ev) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (uiModalOpen()) { $('#ui-modal-cancel').click(); return; }
     const openM = $$('#clan .modal-overlay.show');
     if (openM.length) { openM.forEach((m) => m.classList.remove('show')); return; }
     if (!$('#clan').classList.contains('hidden')) post('close').then(hide);

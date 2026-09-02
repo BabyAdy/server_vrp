@@ -5,7 +5,8 @@
 --    /setstaff    [sqlId] [grade]       (ace ph.admin / consola)
 --    /removestaff [sqlId]               (ace ph.admin / consola)  -> staff = none
 --    /getbeta     [code]                (oricine; cod valid = grad de staff)
---    /staffmenu                         (staff >= trialhelper)
+--    /staffmenu                         (staff >= trialhelper)  -> tab Home
+--    /tk                                (staff >= trialhelper)  -> tab Tickets
 --    /stats                             (oricine; isi vede DOAR propriile date)
 --
 --  Helperele traiesc in server/main.lua + server/public.lua (namespace-ul PH.*);
@@ -156,9 +157,10 @@ RegisterCommand('getbeta', function(src, args)
 end, false)
 
 -- ----------------------------------------------------------
---  /staffmenu - disponibil pentru staff >= trialhelper
+--  /staffmenu  -> tab-ul Home    (staff >= trialhelper)
+--  /tk         -> tab-ul Tickets (staff >= trialhelper)
 -- ----------------------------------------------------------
-RegisterCommand('staffmenu', function(src)
+local function openStaffMenu(src, tab)
     if src == 0 then
         print('[ph-core] /staffmenu is used in-game.')
         return
@@ -181,8 +183,12 @@ RegisterCommand('staffmenu', function(src)
         grade = player.character.staff,
         label = grade and grade.label or nil,
         rank = staffRankIndex(player.character.staff),
+        tab  = tab or 'home',
     })
-end, false)
+end
+
+RegisterCommand('staffmenu', function(src) openStaffMenu(src, 'home') end, false)
+RegisterCommand('tk',        function(src) openStaffMenu(src, 'tickets') end, false)
 
 -- ----------------------------------------------------------
 --  /stats  - trimite in chat, DOAR jucatorului, propriile informatii

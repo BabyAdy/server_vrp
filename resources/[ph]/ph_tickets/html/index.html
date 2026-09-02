@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+<div id="tk" class="hidden">
+    <div class="tk-window">
+        <!-- SIDEBAR -->
+        <aside class="tk-side">
+            <div class="tk-brand">
+                <img id="tk-logo" class="tk-logo" src="" alt="" />
+                <span class="tk-server" id="tk-server">Purple Havoc</span>
+            </div>
+            <nav class="tk-nav">
+                <button class="tk-nav-btn active" data-tab="create">
+                    <i class="fa-solid fa-circle-plus"></i> Create Ticket
+                </button>
+                <button class="tk-nav-btn" data-tab="mytickets">
+                    <i class="fa-solid fa-inbox"></i> My Tickets
+                </button>
+            </nav>
+            <div class="tk-side-foot"><b>Esc</b> to close</div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="tk-main">
+            <!-- CREATE TICKET -->
+            <section class="tk-panel active" id="panel-create">
+                <h2 class="tk-title">Create Ticket</h2>
+
+                <div id="create-locked" class="tk-note hidden">
+                    <i class="fa-solid fa-circle-info"></i>
+                    You already have an active ticket. Open <b>My Tickets</b> to continue the conversation.
+                </div>
+
+                <div id="create-form">
+                    <div class="tk-label">Select Ticket Type</div>
+                    <div class="tk-types" id="tk-types"></div>
+
+                    <div class="tk-label">Description</div>
+                    <div class="tk-textarea-wrap">
+                        <textarea id="tk-desc" class="tk-textarea" rows="5"
+                            placeholder="Describe your issue clearly. One ticket per issue."></textarea>
+                        <span class="tk-counter" id="tk-desc-count">0 / 250</span>
+                    </div>
+
+                    <button class="tk-submit" id="tk-submit" disabled>
+                        <i class="fa-solid fa-paper-plane"></i> Submit Ticket
+                    </button>
+                </div>
+            </section>
+
+            <!-- MY TICKETS -->
+            <section class="tk-panel" id="panel-mytickets">
+                <h2 class="tk-title">My Tickets</h2>
+
+                <div id="mt-empty" class="tk-empty hidden">
+                    <i class="fa-solid fa-inbox"></i>
+                    <p>You don't have an active ticket</p>
+                </div>
+
+                <div id="mt-card" class="tk-ticket-card hidden">
+                    <div class="tk-tc-row">
+                        <span class="tk-chip">Ticket ID: <b id="tc-id">#0</b></span>
+                        <span class="tk-chip">Type: <b id="tc-type">—</b></span>
+                        <span class="tk-chip">Accepted by: <b id="tc-staff">—</b></span>
+                        <span class="tk-chip">Staff ID: <b id="tc-staffid">—</b></span>
+                    </div>
+                    <button class="tk-view" id="tc-view"><i class="fa-solid fa-eye"></i> View</button>
+                </div>
+
+                <div id="mt-chat" class="tk-chat hidden">
+                    <div class="tk-chat-head">
+                        <button class="tk-back" id="chat-back"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                        <div class="tk-chat-meta">
+                            <span id="chat-title">Ticket #0</span>
+                            <span class="tk-status" id="chat-status">open</span>
+                        </div>
+                        <button class="tk-close-ticket" id="chat-close"><i class="fa-solid fa-lock"></i> Close ticket</button>
+                    </div>
+
+                    <div class="tk-messages" id="chat-messages"></div>
+
+                    <div class="tk-composer">
+                        <textarea id="chat-input" class="tk-textarea" rows="2" maxlength="250"
+                            placeholder="Write a message…"></textarea>
+                        <div class="tk-composer-row">
+                            <span class="tk-counter" id="chat-count">0 / 250</span>
+                            <button class="tk-send" id="chat-send"><i class="fa-solid fa-paper-plane"></i> Send</button>
+                        </div>
+                        <div class="tk-composer-hint hidden" id="chat-hint">
+                            Waiting for a staff member to accept your ticket…
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
